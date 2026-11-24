@@ -4,7 +4,7 @@
 const GAME_CONFIG = {
   SAVE_KEY: 'bep_pho_logistics_v1',
   // Bump when the save format changes and add a step to SAVE_MIGRATIONS in state.js.
-  SAVE_VERSION: 5,
+  SAVE_VERSION: 6,
   GRID_COLS: 4,
   GRID_ROWS: 4,
   TILE_SIZE: 4.4,
@@ -29,7 +29,7 @@ const GAME_CONFIG = {
       effectText: '+3 Nguyên liệu / chu kỳ',
       floorStyle: 'concrete',
       floorTint: '#DFD9D0',
-      wallColor: '#ECE5DC',
+      wallColor: '#D9B48C',
       trimColor: '#9E734E',
       staffColor: '#D68432',
       glassFront: true,
@@ -51,7 +51,7 @@ const GAME_CONFIG = {
       effectText: '2 Kho + nước dùng → Món nóng',
       floorStyle: 'tile',
       floorTint: '#EFEAE1',
-      wallColor: '#F3EDE4',
+      wallColor: '#A8D5C2',
       trimColor: '#A96F42',
       staffColor: '#F8F8F6',
       glassFront: true,
@@ -74,7 +74,7 @@ const GAME_CONFIG = {
       effectText: 'Khách ngồi ăn: 1 Món → Xu & Uy tín',
       floorStyle: 'wood',
       floorTint: '#D3A676',
-      wallColor: '#EFE6DA',
+      wallColor: '#F0C266',
       trimColor: '#8E5B36',
       staffColor: '#4A6E8F',
       glassFront: true,
@@ -102,7 +102,7 @@ const GAME_CONFIG = {
       effectText: '2 Món → 2 Đơn sẵn sàng',
       floorStyle: 'slate',
       floorTint: '#AEBCCC',
-      wallColor: '#EAECEE',
+      wallColor: '#C9D7E3',
       trimColor: '#8C623E',
       staffColor: '#2B8080',
       glassFront: true,
@@ -125,7 +125,7 @@ const GAME_CONFIG = {
       effectText: '1 Đơn → +115 Xu & +2 Uy tín',
       floorStyle: 'asphalt',
       floorTint: '#C8C4BD',
-      wallColor: '#E5DFD7',
+      wallColor: '#E8A07A',
       trimColor: '#7B604A',
       staffColor: '#D15540',
       glassFront: false,
@@ -152,7 +152,7 @@ const GAME_CONFIG = {
       effectText: '+40 Xu thụ động & +12% doanh thu',
       floorStyle: 'wood_light',
       floorTint: '#E5CBA5',
-      wallColor: '#F5EDE1',
+      wallColor: '#E7B9A0',
       trimColor: '#8A5A35',
       staffColor: '#7A4A38',
       glassFront: true,
@@ -178,7 +178,7 @@ const GAME_CONFIG = {
       effectText: '+15% tốc độ vận hành & +1 Uy tín',
       floorStyle: 'wood_dark',
       floorTint: '#C6A37D',
-      wallColor: '#EDE5D9',
+      wallColor: '#D8CBB4',
       trimColor: '#764B2C',
       staffColor: '#33465C',
       glassFront: true,
@@ -204,7 +204,7 @@ const GAME_CONFIG = {
       effectText: '+2 Kho & +1 Món · +8% tốc độ & doanh thu',
       floorStyle: 'slate',
       floorTint: '#CFE0EA',
-      wallColor: '#EDF4F7',
+      wallColor: '#B9DCEB',
       trimColor: '#5B7C92',
       staffColor: '#3E84A8',
       glassFront: true,
@@ -230,7 +230,7 @@ const GAME_CONFIG = {
       effectText: '+2 Uy tín & +18% doanh thu toàn chuỗi',
       floorStyle: 'wood_light',
       floorTint: '#E9D6C3',
-      wallColor: '#F7EFE6',
+      wallColor: '#F1B6B0',
       trimColor: '#8B5A3C',
       staffColor: '#B84B6E',
       glassFront: true,
@@ -256,7 +256,7 @@ const GAME_CONFIG = {
       effectText: '2 Đơn → +270 Xu & +3 Uy tín',
       floorStyle: 'asphalt',
       floorTint: '#B9C0C7',
-      wallColor: '#E4E9EE',
+      wallColor: '#B8C6DB',
       trimColor: '#465666',
       staffColor: '#2B6E8C',
       glassFront: false,
@@ -464,6 +464,41 @@ const GAME_CONFIG = {
     costs: [300, 700, 1600, 3500],     // coins for 2★, 3★, 4★, 5★ (× dish costMult)
     sideChance: 0.45                   // chance a customer adds a side / drink
   },
+
+  // Decor: bought once, shown in 3D, gives an effect and Space points.
+  decorZones: {
+    sidewalk: { name: 'Vỉa hè', icon: '🛵', desc: 'kéo khách và giữ chân hàng chờ' },
+    hall: { name: 'Sảnh ăn', icon: '🍽️', desc: 'khách vui lòng trả nhiều hơn' },
+    kitchen: { name: 'Bếp', icon: '🔥', desc: 'bếp chạy trơn tru hơn' }
+  },
+  decor: [
+    { id: 'ghe_nhua', zone: 'sidewalk', name: 'Ghế nhựa & bàn con', icon: '🪑', cost: 250, points: 50, effect: { queuePatience: 0.2 }, effectText: 'Khách xếp hàng kiên nhẫn hơn 20%' },
+    { id: 'cay_xanh', zone: 'sidewalk', name: 'Chậu cây lớn', icon: '🪴', cost: 180, points: 35, effect: { arrival: 0.05 }, effectText: 'Khách ghé +5%' },
+    { id: 'bien_hieu', zone: 'sidewalk', name: 'Biển hiệu đèn', icon: '🏮', cost: 600, points: 90, minRank: 2, effect: { arrival: 0.15 }, effectText: 'Khách ghé +15%' },
+    { id: 'khay_gia_vi', zone: 'hall', name: 'Khay chanh ớt tỏi', icon: '🌶️', cost: 300, points: 45, effect: { price: 0.05 }, effectText: 'Giá món +5%' },
+    { id: 'quat_tran', zone: 'hall', name: 'Quạt trần', icon: '🌀', cost: 450, points: 60, effect: { foodPatience: 0.2, eatFaster: 0.1 }, effectText: 'Khách chờ món kiên nhẫn hơn 20%, ăn nhanh hơn 10%' },
+    { id: 'tranh_pho_co', zone: 'hall', name: 'Tranh phố cổ', icon: '🖼️', cost: 800, points: 110, minRank: 2, effect: { price: 0.08 }, effectText: 'Giá món +8%' },
+    { id: 'den_long', zone: 'hall', name: 'Đèn lồng đỏ', icon: '🏮', cost: 1200, points: 150, minRank: 3, effect: { price: 0.06, arrival: 0.06 }, effectText: 'Giá món +6%, khách ghé +6%' },
+    { id: 'ke_bat', zone: 'kitchen', name: 'Kệ bát inox', icon: '🥣', cost: 350, points: 45, effect: { sinkCap: 4 }, effectText: 'Bồn rửa chứa thêm 4 bát' },
+    { id: 'noi_lon', zone: 'kitchen', name: 'Nồi ninh 100 lít', icon: '🍲', cost: 700, points: 80, effect: { brothCap: 16 }, effectText: 'Nồi nước dùng thêm 16 bát' },
+    { id: 'hut_mui', zone: 'kitchen', name: 'Máy hút mùi bằng đồng', icon: '💨', cost: 1100, points: 120, minRank: 3, effect: { kitchenSpeed: 0.12 }, effectText: 'Bếp nấu nhanh hơn 12%' }
+  ],
+  rankScoring: {
+    spacePerRoomLevel: 20,     // per level of each Dining Room and Kitchen
+    servicePerStaff: 12,
+    servicePerWasher: 15,
+    serviceTraitBonus: 20,     // × each crew member's trait staffBonus
+    foodPerDish: 30,
+    foodPerStar: 15
+  },
+  restaurantRanks: [
+    { name: 'Gánh hàng rong', icon: '🧺', minScore: 0, arrivalBonus: 0, priceBonus: 0, offlineHours: 3, story: '' },
+    { name: 'Quán vỉa hè', icon: '🪑', minScore: 300, arrivalBonus: 0.1, priceBonus: 0.05, offlineHours: 4, story: 'Người trong phố bắt đầu rủ nhau ra quán. Ghế nhựa kín vỉa hè mỗi sáng.' },
+    { name: 'Quán nhà ống', icon: '🏠', minScore: 600, arrivalBonus: 0.2, priceBonus: 0.1, offlineHours: 5, story: 'Quán có mái, có biển, có khách quen gọi "như mọi khi". Từ nay quán có tên trên bản đồ.' },
+    { name: 'Quán có tiếng', icon: '📰', minScore: 1000, arrivalBonus: 0.3, priceBonus: 0.15, offlineHours: 6, story: 'Một tờ báo ẩm thực viết về bát phở của quán. Khách phố khác tìm đến.' },
+    { name: 'Nhà hàng phở', icon: '🏮', minScore: 1600, arrivalBonus: 0.4, priceBonus: 0.22, offlineHours: 8, story: 'Khách đặt bàn trước, du khách xếp hàng chụp ảnh. Quán đã thành nhà hàng thực thụ.' },
+    { name: 'Chuỗi phở', icon: '👑', minScore: 2500, arrivalBonus: 0.55, priceBonus: 0.3, offlineHours: 12, story: 'Thương hiệu đủ mạnh để mở chi nhánh. Bát phở phố cổ bắt đầu đi xa.' }
+  ],
 
   staff: {
     traits: [

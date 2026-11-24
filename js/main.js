@@ -185,7 +185,7 @@ document.getElementById('btn-pause').addEventListener('click', () => {
   isPaused = !isPaused;
   SoundFX.click();
   document.getElementById('pause-icon').textContent = isPaused ? '▶' : '⏸';
-  document.getElementById('pause-label').textContent = isPaused ? 'Tạm dừng' : 'Chạy';
+  document.getElementById('pause-label').textContent = isPaused ? 'Tiếp tục' : 'Tạm dừng';
   document.getElementById('btn-pause').classList.toggle('active', isPaused);
 });
 
@@ -193,13 +193,13 @@ document.getElementById('btn-speed').addEventListener('click', () => {
   gameSpeed = gameSpeed === 1 ? 2 : 1;
   SoundFX.click();
   const btn = document.getElementById('btn-speed');
-  btn.textContent = `${gameSpeed}x`;
+  document.getElementById('speed-label').textContent = `${gameSpeed}x`;
   btn.classList.toggle('active', gameSpeed === 2);
 });
 
 document.getElementById('btn-sound').addEventListener('click', () => {
   SoundFX.enabled = !SoundFX.enabled;
-  document.getElementById('btn-sound').textContent = SoundFX.enabled ? '🔊' : '🔇';
+  document.querySelector('#btn-sound .dock-ico').textContent = SoundFX.enabled ? '🔊' : '🔇';
   if (SoundFX.enabled) SoundFX.click();
 });
 
@@ -260,23 +260,35 @@ document.getElementById('btn-claim-express').addEventListener('click', () => {
 // Modal & Tabs
 const modal = document.getElementById('system-modal');
 const tabs = [
+  { btn: 'tab-build', panel: 'panel-build' },
+  { btn: 'tab-staff', panel: 'panel-staff' },
   { btn: 'tab-save', panel: 'panel-save' },
   { btn: 'tab-dishes', panel: 'panel-dishes' },
-  { btn: 'tab-expansion', panel: 'panel-expansion' },
-  { btn: 'tab-extend', panel: 'panel-extend' },
-  { btn: 'tab-deploy', panel: 'panel-deploy' }
+  { btn: 'tab-decor', panel: 'panel-decor' },
+  { btn: 'tab-expansion', panel: 'panel-expansion' }
 ];
+// Developer notes (architecture, deploy) are kept in the README, not shown to players.
 
 function selectModalTab(tabBtnId) {
   tabs.forEach(x => {
     const active = x.btn === tabBtnId;
     document.getElementById(x.btn).className = active
-      ? 'px-3 py-2 text-xs font-bold border-b-2 border-amber-700 text-amber-800'
-      : 'px-3 py-2 text-xs font-bold border-b-2 border-transparent text-stone-500 hover:text-stone-800';
+      ? 'shrink-0 whitespace-nowrap px-3 py-2 text-sm font-bold border-b-[3px] border-amber-700 text-amber-800'
+      : 'shrink-0 whitespace-nowrap px-3 py-2 text-sm font-bold border-b-[3px] border-transparent text-stone-500 hover:text-stone-800';
     document.getElementById(x.panel).classList.toggle('hidden', !active);
   });
   if (tabBtnId === 'tab-expansion') renderExpansionPanel();
   if (tabBtnId === 'tab-dishes') renderDishesPanel();
+  if (tabBtnId === 'tab-decor') renderDecorPanel();
+  if (tabBtnId === 'tab-build') renderBuildPanel();
+  if (tabBtnId === 'tab-staff') renderStaffPanel();
+  lastMenuTab = tabBtnId;
+}
+let lastMenuTab = 'tab-build';
+
+function closeSystemModal() {
+  modal.classList.add('hidden');
+  modal.classList.remove('flex');
 }
 
 function openSystemModal(tabBtnId = 'tab-save') {
@@ -287,10 +299,10 @@ function openSystemModal(tabBtnId = 'tab-save') {
   modal.classList.add('flex');
 }
 
-document.getElementById('btn-system').addEventListener('click', () => openSystemModal('tab-save'));
-document.getElementById('btn-dishes').addEventListener('click', () => openSystemModal('tab-dishes'));
-document.getElementById('btn-menu-select').addEventListener('click', () => openSystemModal('tab-expansion'));
-document.getElementById('btn-expand-grid').addEventListener('click', () => openSystemModal('tab-expansion'));
+document.getElementById('pill-rank').addEventListener('click', () => openSystemModal('tab-decor'));
+document.getElementById('btn-menu').addEventListener('click', () => { closeInspector(); openSystemModal(lastMenuTab); });
+// Camera buttons live in the settings tab: close the menu so the player sees the result.
+['btn-rotate', 'btn-cam-reset'].forEach((id) => document.getElementById(id).addEventListener('click', closeSystemModal));
 const pillExpBtn = document.getElementById('pill-exp');
 if (pillExpBtn) {
   pillExpBtn.addEventListener('click', () => openSystemModal('tab-expansion'));
@@ -402,10 +414,11 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
     if (!dayModalOpen) document.getElementById('btn-pause').click();
   }
-  else if (e.key === '1') { gameSpeed = 1; document.getElementById('btn-speed').textContent = '1x'; document.getElementById('btn-speed').classList.remove('active'); }
-  else if (e.key === '2') { gameSpeed = 2; document.getElementById('btn-speed').textContent = '2x'; document.getElementById('btn-speed').classList.add('active'); }
+  else if (e.key === '1') { gameSpeed = 1; document.getElementById('speed-label').textContent = '1x'; document.getElementById('btn-speed').classList.remove('active'); }
+  else if (e.key === '2') { gameSpeed = 2; document.getElementById('speed-label').textContent = '2x'; document.getElementById('btn-speed').classList.add('active'); }
   else if (e.key === 'q' || e.key === 'Q') { document.getElementById('btn-rotate').click(); }
   else if (e.key === 'r' || e.key === 'R') { resetCamera(); }
+  else if (e.key === 'm' || e.key === 'M') { if (modal.classList.contains('hidden')) document.getElementById('btn-menu').click(); else closeSystemModal(); }
   else if (e.key === 'Escape') { closeInspector(); modal.classList.add('hidden'); modal.classList.remove('flex'); }
   else if (e.key === '+' || e.key === '=') { viewSize = Math.max(8.5, viewSize * 0.88); updateCameraProjection(); }
   else if (e.key === '-') { viewSize = Math.min(40, viewSize * 1.14); updateCameraProjection(); }

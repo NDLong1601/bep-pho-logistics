@@ -75,6 +75,7 @@ function updateHUD() {
 
   updateTicketMetaBadges();
   if (typeof updateTicketRailProgress === 'function') updateTicketRailProgress();
+  if (typeof updateRankPill === 'function') updateRankPill();
 
   const perksBox = document.getElementById('active-perks-box');
   const perksList = document.getElementById('active-perks-list');
@@ -111,7 +112,7 @@ function renderTicketRail() {
 
   const tickets = state.tickets || [];
   if (!tickets.length) {
-    rail.innerHTML = `<div class="hud-glass rounded-xl px-3 py-1.5 text-[11px] text-stone-500">⏳ Đang chờ khách gọi món...</div>`;
+    rail.innerHTML = '';
     return;
   }
 
@@ -674,7 +675,7 @@ function renderDrawer() {
       updateKitchenPanel();
     }
 
-    const wakeBtn = document.getElementById('btn-wake-crew');
+    const wakeBtn = body.querySelector('[data-wake-room]');
     if (wakeBtn) wakeBtn.addEventListener('click', () => { wakeRoomCrew(room); renderDrawer(); });
 
     const drawerMenuBtn = document.getElementById('btn-drawer-menu');
@@ -702,38 +703,11 @@ function renderDrawer() {
     });
 
     document.getElementById('btn-upgrade-room').addEventListener('click', () => {
-      const req = getRoomUpgradeRequirements(room);
-      if (!req.met) return;
-      state.coins -= req.coins;
-      if (req.reqIngredients > 0) {
-        state.ingredients = Math.max(0, state.ingredients - req.reqIngredients);
-      }
-      room.level += 1;
-      triggerRoomPop(room.gx, room.gy);
-      rebuildRooms3D();
-      SoundFX.upgrade();
-      spawnFloater(room.gx, room.gy, `Lên Lv.${room.level} · +${req.expGain} EXP`, '#B85524');
-      showToast(`⬆️ Đã nâng cấp ${cfg.name} lên Lv.${room.level}! (+${req.expGain} EXP)`);
-      gainExp(req.expGain);
-      updateHUD();
-      renderDrawer();
-      saveGame(false);
+      if (upgradeRoom(room)) renderDrawer();
     });
 
     document.getElementById('btn-hire-staff').addEventListener('click', () => {
-      if (room.staff >= GAME_CONFIG.MAX_STAFF_PER_ROOM || state.coins < staffCost) return;
-      state.coins -= staffCost;
-      room.staff += 1;
-      rebuildRooms3D();
-      const newcomer = room.crew[room.crew.length - 1];
-      if (newcomer) showToast(`👋 ${newcomer.name} (${getStaffTrait(newcomer.trait).name}) gia nhập ${cfg.name}!`);
-      SoundFX.upgrade();
-      spawnFloater(room.gx, room.gy, '+1 Nhân sự · +20 EXP', '#266E56');
-      showToast(`Đã tuyển thêm nhân viên cho ${cfg.name}! (+20 EXP)`);
-      gainExp(20);
-      updateHUD();
-      renderDrawer();
-      saveGame(false);
+      if (hireRoomStaff(room)) renderDrawer();
     });
 
     document.getElementById('btn-demolish-room').addEventListener('click', () => {
@@ -759,6 +733,44 @@ function renderDrawer() {
       saveGame(false);
     });
   }
+}
+
+// Shared by the room drawer and the Menu "Công trình" / "Nhân viên" tabs.
+function upgradeRoom(room) {
+  const cfg = GAME_CONFIG.rooms[room.type];
+  const req = getRoomUpgradeRequirements(room);
+  if (!req.met) return false;
+  state.coins -= req.coins;
+  if (req.reqIngredients > 0) {
+    state.ingredients = Math.max(0, state.ingredients - req.reqIngredients);
+  }
+  room.level += 1;
+  triggerRoomPop(room.gx, room.gy);
+  rebuildRooms3D();
+  SoundFX.upgrade();
+  spawnFloater(room.gx, room.gy, `Lên Lv.${room.level} · +${req.expGain} EXP`, '#B85524');
+  showToast(`⬆️ Đã nâng cấp ${cfg.name} lên Lv.${room.level}! (+${req.expGain} EXP)`);
+  gainExp(req.expGain);
+  updateHUD();
+  saveGame(false);
+  return true;
+}
+
+function hireRoomStaff(room) {
+  const cfg = GAME_CONFIG.rooms[room.type];
+  const staffCost = getStaffCost(room);
+  if (room.staff >= GAME_CONFIG.MAX_STAFF_PER_ROOM || state.coins < staffCost) return false;
+  state.coins -= staffCost;
+  room.staff += 1;
+  rebuildRooms3D();
+  const newcomer = room.crew && room.crew[room.crew.length - 1];
+  if (newcomer) showToast(`👋 ${newcomer.name} (${getStaffTrait(newcomer.trait).name}) gia nhập ${cfg.name}!`);
+  SoundFX.upgrade();
+  spawnFloater(room.gx, room.gy, '+1 Nhân sự · +20 EXP', '#266E56');
+  gainExp(20);
+  updateHUD();
+  saveGame(false);
+  return true;
 }
 
 function buildRoom(gx, gy, typeId) {

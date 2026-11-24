@@ -23,6 +23,8 @@ bep-pho-logistics/
     ├── customers.js    # Khách thật: xếp hàng, ngồi bàn, ăn, trả tiền; nồi nước dùng & bồn rửa
     ├── staff.js        # Nhân viên có tên & tính cách, ngủ gật, người rửa bát
     ├── dishes.js       # Món ăn: giá, thời gian chuẩn bị, nâng sao, công thức từ khách quen
+    ├── decor.js        # Trang trí, 3 điểm Không gian/Phục vụ/Món ăn và hạng quán
+    ├── menu.js         # Nút Menu duy nhất: tab Công trình và Nhân viên
     ├── simulation.js   # Vòng lặp sản xuất, di chuyển nhân vật, hiệu ứng
     ├── ui.js           # Thanh tài nguyên, đơn hàng, bảng nâng cấp/xây mới
     └── main.js         # Điều khiển chuột/cảm ứng/phím tắt và khởi chạy
@@ -47,6 +49,7 @@ bep-pho-logistics/
 - **Người rửa bát** thuê riêng trong bảng Bếp (tối đa 2 mỗi bếp), rửa bát bẩn liên tục.
 - **Kho nguyên liệu** có sức chứa; kho đầy thì Kho Nguyên Liệu tạm ngừng nhập.
 - **Món ăn** (nút 📖 Món ăn): khách gọi một món chính, đôi khi kèm trà đá hoặc quẩy, và trả đúng giá món. Mỗi món nâng được từ 1 đến 5 sao (+20% giá mỗi sao, được gọi nhiều hơn). Phục vụ đủ số khách thì một khách quen kể công thức món mới (Quẩy, Phở gà, Phở nạm gầu, Phở cuốn, Phở đặc biệt).
+- **Trang trí & Hạng quán** (bấm ô hạng quán trên thanh trên cùng): mua đồ trang trí cho vỉa hè, sảnh ăn và bếp (ghế nhựa, cây, biển hiệu, khay gia vị, quạt trần, tranh phố cổ, đèn lồng, kệ bát, nồi lớn, máy hút mùi). Mỗi món có hiệu ứng riêng và hiện ra trong cảnh 3D. Điểm Không gian, Phục vụ và Món ăn cộng lại thành hạng quán, từ Gánh hàng rong đến Chuỗi phở. Hạng cao thì khách đến nhiều hơn, giá bán cao hơn và thu nhập offline được giữ lâu hơn (3 đến 12 giờ).
 - Thông số nằm ở `GAME_CONFIG.restaurant`, `GAME_CONFIG.staff`, `GAME_CONFIG.dishes` và `GAME_CONFIG.dishStars` trong `js/config.js`.
 
 ## Hướng dẫn Mở rộng Game
@@ -59,13 +62,22 @@ bep-pho-logistics/
 
 ## Thư viện cục bộ
 
-Game không tải thư viện từ CDN nữa. Three.js nằm ở `vendor/three.min.js` và Tailwind được biên dịch sẵn vào `css/tailwind.css`.
+Game không tải thư viện từ CDN nữa. Three.js nằm ở `vendor/three.min.js`, Tailwind được biên dịch sẵn vào `css/tailwind.css`, và font Baloo 2 (giấy phép SIL OFL) nằm ở `vendor/fonts/`.
 
 Khi thêm class Tailwind mới vào `index.html` hoặc `js/`, biên dịch lại CSS (cần Node.js):
 
 ```bash
 npx tailwindcss@3.4.17 --content "./index.html,./js/**/*.js" -o css/tailwind.css --minify
 ```
+
+## Phong cách hình ảnh
+
+Game theo hướng "3D hoạt hình ấm":
+
+- Mọi vật thể dùng `toonMat()` trong `js/scene.js` (đổ bóng kiểu hoạt hình 3 bậc) và có viền mực nâu bằng `addOutline()`.
+- Bảng màu được làm ấm và đậm hơn qua `artColor()`; chỉnh độ đậm và viền ở hằng `ART` trong cùng file.
+- Nhân vật chibi (`createMiniCharacter`) có đầu to, mắt, má hồng, tóc, mũ đầu bếp hoặc băng đô phục vụ.
+- Giao diện dùng viền đậm, nền giấy kem và nút nổi bấm lún. Toàn bộ nằm ở phần "CARTOON UI THEME" cuối `css/style.css`.
 
 ## Phiên bản file lưu
 

@@ -144,7 +144,7 @@ function getNextRecipe() {
     .sort((a, b) => a.unlock.served - b.unlock.served)[0] || null;
 }
 
-function showStoryCard(icon, title, text) {
+function showStoryCard(icon, title, text, label = 'Món mới · Công thức từ khách quen') {
   const box = document.getElementById('toast-box');
   if (!box) return;
   const el = document.createElement('div');
@@ -153,7 +153,7 @@ function showStoryCard(icon, title, text) {
     <div class="flex items-start gap-2.5">
       <div class="text-2xl leading-none">${icon}</div>
       <div>
-        <div class="text-[10px] font-bold uppercase tracking-wide text-amber-700">Món mới · Công thức từ khách quen</div>
+        <div class="text-[10px] font-bold uppercase tracking-wide text-amber-700">${label}</div>
         <div class="text-xs font-bold text-stone-900 mt-0.5">${title}</div>
         <div class="text-[11px] text-stone-600 mt-1 leading-snug">${text}</div>
       </div>
@@ -197,7 +197,7 @@ function renderDishesPanel() {
     const unlocked = isDishUnlocked(d.id);
     const stars = getDishStars(d.id);
     const starStr = '★'.repeat(stars) + '☆'.repeat(GAME_CONFIG.dishStars.max - stars);
-    const price = Math.round(base * (d.priceMult || 1) * getDishStarMult(d.id));
+    const price = Math.round(base * (d.priceMult || 1) * getDishStarMult(d.id) * getVenuePriceMult());
     const cost = getDishUpgradeCost(d.id);
     const sold = (state.dishSales && state.dishSales[d.id]) || 0;
     const kind = d.category === 'side' ? 'Món kèm / đồ uống' : (d.needsBroth === false ? 'Món chính, không cần nước dùng' : 'Món chính, dùng nước dùng');

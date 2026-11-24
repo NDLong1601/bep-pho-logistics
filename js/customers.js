@@ -74,12 +74,12 @@ function scaleByKitchen(base, perLevel) {
 
 function getBrothCap() {
   const c = GAME_CONFIG.restaurant.broth;
-  return scaleByKitchen(c.baseCap, c.capPerLevel);
+  return scaleByKitchen(c.baseCap, c.capPerLevel) + getDecorBonus('brothCap');
 }
 
 function getSinkCap() {
   const c = GAME_CONFIG.restaurant.sink;
-  return scaleByKitchen(c.baseCap, c.capPerLevel);
+  return scaleByKitchen(c.baseCap, c.capPerLevel) + getDecorBonus('sinkCap');
 }
 
 function getDishCounterCap() {
@@ -175,6 +175,7 @@ function getCustomerArrivalInterval(phase) {
   const c = GAME_CONFIG.restaurant.customers;
   let t = c.baseIntervalSec / (1 + Math.min(c.maxRepBoost, (state.rep || 0) / c.repPerBoost));
   if (phase && phase.isRush) t *= c.rushIntervalMult;
+  t /= 1 + getDecorBonus('arrival') + getRankArrivalBonus();
   return Math.max(c.minIntervalSec, t);
 }
 
@@ -220,7 +221,7 @@ function spawnCustomerFor(room, forceVip = false) {
   mesh.position.set(startX, SIDEWALK_Y, laneZ);
   customersGroup.add(mesh);
 
-  const patience = c.queuePatienceSec * (1 + 0.25 * getPerkBonus('warm_hospitality')) * getCrewPatienceMult(room);
+  const patience = c.queuePatienceSec * (1 + 0.25 * getPerkBonus('warm_hospitality') + getDecorBonus('queuePatience')) * getCrewPatienceMult(room);
   const customer = {
     mesh,
     bowl,
@@ -323,7 +324,7 @@ function payCustomer(c) {
   const stats = getRoomCycleStats(room);
   const out = stats.output || {};
   const order = c.order || { main: 'pho_tai', side: null };
-  const coins = Math.round((out.coins || 0) * getOrderPriceMult(order) * (c.vip ? cfg.vipPayMult : 1));
+  const coins = Math.round((out.coins || 0) * getOrderPriceMult(order) * getVenuePriceMult() * (c.vip ? cfg.vipPayMult : 1));
   const rep = (out.rep || 1) + (c.vip ? cfg.vipBonusRep : 0);
 
   state.coins += coins;
@@ -446,7 +447,7 @@ function updateCustomers(effDt, phase) {
         c.order = pickCustomerOrder();
         c.waiter = null;
         c.dishReserved = false;
-        c.patience = cfg.foodPatienceSec * (1 + 0.25 * getPerkBonus('warm_hospitality')) * getCrewPatienceMult(room);
+        c.patience = cfg.foodPatienceSec * (1 + 0.25 * getPerkBonus('warm_hospitality') + getDecorBonus('foodPatience')) * getCrewPatienceMult(room);
         c.maxPatience = c.patience;
       }
     } else if (c.stage === 'waitFood') {
@@ -584,7 +585,7 @@ function updateWaiters(effDt) {
           c.dishReserved = false;
           c.waiter = null;
           c.stage = 'eating';
-          c.timer = cfg.eatSec * (0.85 + Math.random() * 0.3);
+          c.timer = cfg.eatSec * (1 - getDecorBonus('eatFaster')) * (0.85 + Math.random() * 0.3);
           if (Math.random() < 0.5) spawnSteamAt(c.mesh.position);
           a.task = null;
         }
@@ -615,5 +616,10 @@ function estimateVenueRates(room, bonuses) {
   const bowlShare = getUnlockedDishes('main').length
     ? getUnlockedDishes('main').filter(d => d.needsBroth !== false).length / getUnlockedDishes('main').length
     : 1;
-  return { coins: servedPerSec * (out.coins || 0) * getExpectedOrderPriceMult(), dishes: servedPerSec * bowlShare };
+  return { coins: servedPerSec * (out.coins || 0) * getExpectedOrderPriceMult() * getVenuePriceMult(), dishes: servedPerSec * bowlShare };
+}
+
+// Restaurant-wide price bonus from decor and rank.
+function getVenuePriceMult() {
+  return 1 + getDecorBonus('price') + getRankPriceBonus();
 }

@@ -15,90 +15,57 @@
     <canvas id="game-canvas"></canvas>
     <div id="overlay-layer"></div>
 
-    <!-- TOP HUD BAR -->
-    <header class="fixed top-3.5 left-3.5 right-3.5 z-20 flex flex-col gap-2 pointer-events-none">
-      <div class="flex flex-wrap items-center justify-between gap-2.5 w-full">
-      <!-- Brand + Resources -->
-      <div class="hud-glass rounded-2xl px-3.5 py-2 flex flex-wrap items-center gap-2.5 pointer-events-auto max-w-full">
-        <div class="flex items-center gap-2.5 pr-3 border-r border-stone-900/10">
-          <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-600 to-orange-700 flex items-center justify-center text-white shadow-sm">
+    <!-- TOP HUD: brand + the few numbers that matter -->
+    <header class="fixed top-3 left-3 right-3 z-20 flex flex-col items-start gap-2 pointer-events-none">
+      <div class="hud-glass rounded-2xl px-2 py-1.5 flex items-center gap-2 pointer-events-auto max-w-full">
+        <div class="flex items-center gap-2 shrink-0">
+          <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-600 to-orange-700 flex items-center justify-center text-white">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11h18"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M8 21h8"/><path d="M12 18v3"/><path d="M8 7c0-1.5 1-2 1-3.5"/><path d="M12 7c0-1.5 1-2 1-3.5"/><path d="M16 7c0-1.5 1-2 1-3.5"/></svg>
           </div>
-          <div class="leading-tight hidden sm:block">
-            <div class="font-bold text-[13.5px] tracking-tight text-stone-900">Bếp Phố Logistics</div>
+          <div class="leading-tight hidden lg:block pr-1">
+            <div class="font-bold text-[13.5px] tracking-tight text-stone-900">Bếp Phố</div>
             <div class="text-[11px] font-medium text-stone-500 flex items-center gap-1.5">
-              <span>Ngày <span id="stat-day">1</span> · <span id="stat-rooms">3/16</span> phân khu</span>
-              <span id="stat-day-phase" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-amber-500/15 text-amber-900">☀️ Buổi sáng</span>
+              <span>Ngày <span id="stat-day">1</span> · <span id="stat-rooms">3/16</span> ô</span>
+              <span id="stat-day-phase" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold">☀️ Buổi sáng</span>
             </div>
           </div>
         </div>
-
-        <div class="flex flex-wrap items-center gap-1.5 text-xs font-semibold">
-          <button id="pill-exp" type="button" class="stat-chip rounded-xl px-2.5 py-1.5 flex items-center gap-1.5 cursor-pointer hover:border-amber-500/50" title="Cấp độ Quản lý & Kinh nghiệm (Nhấn xem lộ trình mở khóa)">
-            <span class="text-[11px]">⭐</span>
-            <span class="text-amber-900 font-extrabold">Cấp <span id="stat-level" class="tabular-nums">1</span></span>
-            <span id="stat-exp" class="text-[10px] font-semibold tabular-nums text-stone-500 hidden sm:inline">0/90 EXP</span>
+        <div class="flex items-center gap-1.5 text-xs font-semibold min-w-0">
+          <div id="pill-coins" class="stat-chip rounded-xl px-2.5 py-1 flex items-center gap-1.5" title="Xu">
+            <span class="text-[13px]">🪙</span>
+            <span id="stat-coins" class="tabular-nums text-stone-900 font-extrabold text-[13px]">650</span>
+            <span id="rate-coins" class="text-[10px] font-semibold tabular-nums text-stone-400 hidden sm:inline"></span>
+          </div>
+          <button id="pill-exp" type="button" class="stat-chip rounded-xl px-2.5 py-1 flex items-center gap-1.5 cursor-pointer" title="Cấp độ (nhấn xem lộ trình mở khóa)">
+            <span class="text-[12px]">⭐</span>
+            <span class="text-amber-900 font-extrabold"><span class="hidden sm:inline">Cấp </span><span id="stat-level" class="tabular-nums">1</span></span>
             <span class="w-10 h-1.5 bg-stone-900/10 rounded-full overflow-hidden hidden md:inline-block">
               <span id="stat-exp-bar" class="block h-full bg-gradient-to-r from-amber-500 to-emerald-600 rounded-full transition-all duration-300" style="width: 0%"></span>
             </span>
+            <span id="stat-exp" class="hidden">0/90 EXP</span>
           </button>
-          <div id="pill-coins" class="stat-chip rounded-xl px-2.5 py-1.5 flex items-center gap-1.5" title="Ngân sách (Xu)">
-            <span class="w-2 h-2 rounded-full bg-amber-500"></span>
-            <span id="stat-coins" class="tabular-nums text-stone-900 font-bold">650</span>
-            <span class="text-[10.5px] text-stone-400 font-medium hidden sm:inline">Xu</span>
-            <span id="rate-coins" class="text-[10px] font-semibold tabular-nums text-stone-400"></span>
+          <button id="pill-rank" type="button" class="stat-chip rounded-xl px-2.5 py-1 flex items-center gap-1.5 text-xs font-bold text-stone-800 min-w-0" title="Hạng quán: trang trí, phục vụ, món ăn">
+            <span id="stat-rank" class="truncate max-w-[96px] sm:max-w-none">🧺 Gánh hàng rong</span>
+          </button>
+          <div id="pill-ingredients" class="stat-chip rounded-xl px-2 py-1 hidden xl:flex items-center gap-1" title="Nguyên liệu trong kho">
+            <span>🥬</span><span id="stat-ingredients" class="tabular-nums text-stone-800">12</span>
+            <span id="rate-ingredients" class="hidden"></span>
           </div>
-          <div id="pill-ingredients" class="stat-chip rounded-xl px-2.5 py-1.5 flex items-center gap-1.5" title="Nguyên liệu trong kho">
-            <span class="w-2 h-2 rounded-full bg-emerald-600"></span>
-            <span id="stat-ingredients" class="tabular-nums text-stone-800">12</span>
-            <span class="text-[10.5px] text-stone-400 font-medium hidden md:inline">Kho</span>
-            <span id="rate-ingredients" class="text-[10px] font-semibold tabular-nums text-stone-400"></span>
+          <div id="pill-dishes" class="stat-chip rounded-xl px-2 py-1 hidden xl:flex items-center gap-1" title="Món ăn sẵn sàng">
+            <span>🍜</span><span id="stat-dishes" class="tabular-nums text-stone-800">4</span>
+            <span id="rate-dishes" class="hidden"></span>
           </div>
-          <div id="pill-dishes" class="stat-chip rounded-xl px-2.5 py-1.5 flex items-center gap-1.5" title="Món ăn sẵn sàng">
-            <span class="w-2 h-2 rounded-full bg-orange-500"></span>
-            <span id="stat-dishes" class="tabular-nums text-stone-800">4</span>
-            <span class="text-[10.5px] text-stone-400 font-medium hidden md:inline">Món</span>
-            <span id="rate-dishes" class="text-[10px] font-semibold tabular-nums text-stone-400"></span>
+          <div id="pill-parcels" class="stat-chip rounded-xl px-2 py-1 hidden xl:flex items-center gap-1" title="Đơn chờ giao">
+            <span>📦</span><span id="stat-parcels" class="tabular-nums text-stone-800">0</span>
+            <span id="rate-parcels" class="hidden"></span>
           </div>
-          <div id="pill-parcels" class="stat-chip rounded-xl px-2.5 py-1.5 flex items-center gap-1.5" title="Đơn đóng gói chờ giao">
-            <span class="w-2 h-2 rounded-full bg-sky-600"></span>
-            <span id="stat-parcels" class="tabular-nums text-stone-800">0</span>
-            <span class="text-[10.5px] text-stone-400 font-medium hidden md:inline">Đơn</span>
-            <span id="rate-parcels" class="text-[10px] font-semibold tabular-nums text-stone-400"></span>
-          </div>
-          <div id="pill-rep" class="stat-chip rounded-xl px-2.5 py-1.5 hidden lg:flex items-center gap-1.5" title="Uy tín thương hiệu">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="#D98A2B" stroke="#D98A2B" stroke-width="1.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-            <span id="stat-rep" class="tabular-nums text-amber-700">10</span>
-          </div>
+          <div id="pill-rep" class="hidden" title="Uy tín"><span id="stat-rep">10</span></div>
         </div>
       </div>
 
-      <!-- Toolbar -->
-      <div class="hud-glass rounded-2xl px-2 py-1.5 flex items-center gap-1.5 pointer-events-auto">
-        <button id="btn-pause" class="btn-ghost rounded-xl px-2.5 py-1.5 text-xs font-semibold flex items-center gap-1.5" title="Tạm dừng / Tiếp tục (Space)">
-          <span id="pause-icon">⏸</span><span class="hidden sm:inline" id="pause-label">Chạy</span>
-        </button>
-        <button id="btn-speed" class="btn-ghost rounded-xl px-2.5 py-1.5 text-xs font-bold tabular-nums" title="Đổi tốc độ (1 / 2)">1x</button>
-        <button id="btn-sound" class="btn-ghost rounded-xl w-8 h-8 flex items-center justify-center text-xs" title="Bật/Tắt âm thanh">🔊</button>
-        <button id="btn-dishes" class="btn-ghost rounded-xl px-2.5 py-1.5 text-xs font-semibold flex items-center gap-1" title="Món ăn: giá, nâng sao, công thức mới">
-          <span>📖</span><span class="hidden md:inline">Món ăn</span>
-        </button>
-        <button id="btn-menu-select" class="btn-ghost rounded-xl px-2.5 py-1.5 text-xs font-semibold flex items-center gap-1" title="Chọn Thực đơn Đặc sản">
-          <span id="menu-icon">🍜</span><span class="hidden md:inline" id="menu-label">Thực đơn</span>
-        </button>
-        <button id="btn-expand-grid" class="btn-ghost rounded-xl px-2.5 py-1.5 text-xs font-semibold flex items-center gap-1" title="Mở rộng quỹ đất">
-          <span>🗺️</span><span class="hidden md:inline" id="expand-label">5×5</span>
-        </button>
-        <button id="btn-system" class="btn-ghost rounded-xl px-3 py-1.5 text-xs font-semibold flex items-center gap-1.5" title="Lưu game & Mở rộng">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.6.85 1 1.51 1H21a2 2 0 0 1 0 4h-.09c-.66 0-1.25.4-1.51 1z"/></svg>
-          <span class="hidden sm:inline">Mở rộng</span>
-        </button>
-      </div>
-      </div>
-
-      <!-- LIVE ORDER TICKETS & COMBO RAIL -->
-      <div id="ticket-rail-container" class="flex flex-wrap items-center gap-2 pointer-events-none md:max-w-[calc(100vw-356px)]">
-        <div class="hud-glass rounded-xl px-2.5 py-1.5 flex items-center gap-2 pointer-events-auto text-[11px] font-bold">
+      <!-- Order tickets (only when a guest is waiting) + combo -->
+      <div id="ticket-rail-container" class="flex items-center gap-2 pointer-events-none max-w-full">
+        <div class="hud-glass rounded-xl px-2.5 py-1 hidden md:flex items-center gap-2 pointer-events-auto text-[11px] font-bold">
           <span id="combo-badge" class="text-amber-800">🔥 Combo 1.0x</span>
           <span class="text-stone-300">|</span>
           <span id="upkeep-badge" class="text-stone-600 tabular-nums" title="Chi phí lương & vận hành trừ cuối ngày">💸 -0/ngày</span>
@@ -107,8 +74,13 @@
       </div>
     </header>
 
+    <!-- THE ONE MENU BUTTON: everything the player manages is inside -->
+    <button id="btn-menu" class="menu-fab fixed bottom-3 right-3 z-20 pointer-events-auto" title="Menu (M)">
+      <span class="menu-fab-ico">☰</span><span>Menu</span>
+    </button>
+
     <!-- BOTTOM-LEFT COZY CONTRACT CARD -->
-    <aside id="contract-panel" class="fixed bottom-4 left-3.5 z-20 w-72 max-w-[calc(100vw-28px)] hud-glass rounded-2xl p-3.5 pointer-events-auto">
+    <aside id="contract-panel" class="fixed bottom-3 left-3 z-20 w-72 max-w-[calc(100vw-28px)] hud-glass rounded-2xl p-3.5 pointer-events-auto">
       <div id="express-box" class="hidden mb-3 pb-3 border-b border-stone-900/10">
         <div class="flex items-center justify-between gap-2 mb-1">
           <span class="text-[10px] font-bold uppercase tracking-wider text-rose-700">⚡ Đơn Khẩn Cấp</span>
@@ -127,7 +99,7 @@
         </button>
       </div>
       <div class="flex items-center justify-between mb-1.5">
-        <span class="text-[10.5px] font-bold uppercase tracking-wider text-amber-800/80">Đơn hàng nhẹ nhàng</span>
+        <span id="contract-head-label" class="text-[10.5px] font-bold uppercase tracking-wider text-amber-800/80">Đơn hàng nhẹ nhàng</span>
         <span id="contract-reward" class="text-[11px] font-bold text-emerald-800 bg-emerald-500/12 border border-emerald-600/20 px-2 py-0.5 rounded-full">
           +220 Xu
         </span>
@@ -145,24 +117,14 @@
       </button>
     </aside>
 
-    <!-- BOTTOM-RIGHT CAMERA CONTROLS -->
-    <div class="fixed bottom-4 right-3.5 z-20 flex flex-col items-end gap-2 pointer-events-none">
-      <div class="hud-glass rounded-2xl p-1.5 flex items-center gap-1 pointer-events-auto">
-        <button id="btn-rotate" class="btn-ghost px-2.5 h-8 rounded-xl text-xs font-semibold flex items-center gap-1" title="Xoay góc nhìn 90° (Q)">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
-          <span class="hidden sm:inline">Xoay</span>
-        </button>
-        <button id="btn-zoom-out" class="btn-ghost w-8 h-8 rounded-xl text-sm font-bold flex items-center justify-center" title="Thu nhỏ (-)">−</button>
-        <button id="btn-cam-reset" class="btn-ghost px-2.5 h-8 rounded-xl text-xs font-semibold flex items-center justify-center" title="Căn giữa (R)">Trung tâm</button>
-        <button id="btn-zoom-in" class="btn-ghost w-8 h-8 rounded-xl text-sm font-bold flex items-center justify-center" title="Phóng to (+)">+</button>
-      </div>
-      <div class="hud-glass rounded-xl px-3 py-1.5 text-[11px] text-stone-600 pointer-events-auto hidden md:block">
-        Nhấn <strong class="text-stone-900">phòng</strong> để nâng cấp · Nhấn <strong class="text-stone-900">ô lưới trống</strong> để xây mới · Kéo để di chuyển
-      </div>
+    <!-- BOTTOM-RIGHT ZOOM (desktop; phones pinch) -->
+    <div class="fixed bottom-[92px] right-3 z-20 hidden md:flex flex-col gap-1.5 hud-glass rounded-2xl p-1.5 pointer-events-auto">
+      <button id="btn-zoom-in" class="btn-ghost w-9 h-9 rounded-xl text-base font-bold flex items-center justify-center" title="Phóng to (+)">+</button>
+      <button id="btn-zoom-out" class="btn-ghost w-9 h-9 rounded-xl text-base font-bold flex items-center justify-center" title="Thu nhỏ (-)">−</button>
     </div>
 
     <!-- RIGHT INSPECTOR / BUILD DRAWER -->
-    <aside id="inspector-drawer" class="fixed top-20 right-3.5 bottom-20 z-30 w-80 max-w-[calc(100vw-28px)] hud-glass rounded-2xl flex flex-col overflow-hidden hidden pointer-events-auto">
+    <aside id="inspector-drawer" class="fixed top-20 right-3.5 bottom-[92px] z-30 w-80 max-w-[calc(100vw-28px)] hud-glass rounded-2xl flex flex-col overflow-hidden hidden pointer-events-auto">
       <div class="px-4 py-3 border-b border-stone-900/10 flex items-center justify-between bg-white/45">
         <div class="flex items-center gap-2.5 min-w-0">
           <div id="drawer-icon" class="w-9 h-9 rounded-xl bg-amber-100/80 border border-amber-900/10 flex items-center justify-center text-lg shrink-0">🏠</div>
@@ -181,22 +143,35 @@
       <div class="hud-glass rounded-3xl w-full max-w-xl max-h-[85vh] flex flex-col overflow-hidden bg-[#FDFBF7]">
         <div class="px-5 py-4 border-b border-stone-900/10 flex items-center justify-between">
           <div>
-            <h2 class="font-bold text-base text-stone-900">Quản lý Lưu trữ & Mở rộng Game</h2>
-            <p class="text-xs text-stone-500">Chạy trực tiếp trên GitHub Pages · Cấu trúc dữ liệu tách biệt dễ mở rộng</p>
+            <h2 class="font-bold text-base text-stone-900">🍜 Quản lý quán</h2>
+            <p class="text-xs text-stone-500">Công trình, nhân viên, món ăn, trang trí và cài đặt</p>
           </div>
           <button id="btn-close-modal" class="btn-ghost w-8 h-8 rounded-xl text-sm font-bold">✕</button>
         </div>
 
-        <div class="px-5 pt-2.5 flex flex-wrap gap-2 border-b border-stone-900/10">
-          <button id="tab-save" class="px-3 py-2 text-xs font-bold border-b-2 border-amber-700 text-amber-800">Lưu & Dữ liệu</button>
-          <button id="tab-dishes" class="px-3 py-2 text-xs font-bold border-b-2 border-transparent text-stone-500 hover:text-stone-800">Món ăn</button>
-          <button id="tab-expansion" class="px-3 py-2 text-xs font-bold border-b-2 border-transparent text-stone-500 hover:text-stone-800">Cấp độ, Thực đơn & Mở đất</button>
-          <button id="tab-extend" class="px-3 py-2 text-xs font-bold border-b-2 border-transparent text-stone-500 hover:text-stone-800">Kiến trúc Mở rộng</button>
-          <button id="tab-deploy" class="px-3 py-2 text-xs font-bold border-b-2 border-transparent text-stone-500 hover:text-stone-800">Deploy GitHub Pages</button>
+        <div class="px-4 pt-2 flex flex-nowrap overflow-x-auto custom-scroll gap-1 border-b border-stone-900/10">
+          <button id="tab-build" class="shrink-0 whitespace-nowrap px-3 py-2 text-sm font-bold">🏗️ Công trình</button>
+          <button id="tab-staff" class="shrink-0 whitespace-nowrap px-3 py-2 text-sm font-bold">👩‍🍳 Nhân viên</button>
+          <button id="tab-dishes" class="shrink-0 whitespace-nowrap px-3 py-2 text-sm font-bold">📖 Món ăn</button>
+          <button id="tab-decor" class="shrink-0 whitespace-nowrap px-3 py-2 text-sm font-bold">🏮 Trang trí</button>
+          <button id="tab-expansion" class="shrink-0 whitespace-nowrap px-3 py-2 text-sm font-bold">🍜 Mở rộng</button>
+          <button id="tab-save" class="shrink-0 whitespace-nowrap px-3 py-2 text-sm font-bold">⚙️ Cài đặt</button>
         </div>
 
         <div id="modal-content" class="p-5 overflow-y-auto custom-scroll text-xs text-stone-700 space-y-4">
+          <div id="panel-build" class="hidden space-y-2" ><div id="build-list" class="space-y-2"></div></div>
+          <div id="panel-staff" class="hidden"><div id="staff-list" class="space-y-4"></div></div>
           <div id="panel-save" class="space-y-4">
+            <div>
+              <div class="text-[11px] font-bold uppercase tracking-wide text-stone-500 mb-1.5">Điều khiển</div>
+              <div class="grid grid-cols-3 gap-2">
+                <button id="btn-pause" class="dock-btn" title="Tạm dừng / Tiếp tục (Space)"><span class="dock-ico" id="pause-icon">⏸</span><span id="pause-label">Tạm dừng</span></button>
+                <button id="btn-speed" class="dock-btn" title="Đổi tốc độ (1 / 2)"><span class="dock-ico tabular-nums" id="speed-label">1x</span><span>Tốc độ</span></button>
+                <button id="btn-sound" class="dock-btn" title="Bật/Tắt âm thanh"><span class="dock-ico">🔊</span><span>Âm thanh</span></button>
+                <button id="btn-rotate" class="dock-btn" title="Xoay góc nhìn 90° (Q)"><span class="dock-ico">🔄</span><span>Xoay</span></button>
+                <button id="btn-cam-reset" class="dock-btn" title="Căn giữa (R)"><span class="dock-ico">🎯</span><span>Căn giữa</span></button>
+                              </div>
+            </div>
             <div class="grid grid-cols-2 gap-2.5">
               <div class="bg-white border border-stone-200/80 rounded-2xl p-3">
                 <div class="text-[11px] text-stone-500">Tổng lượt phục vụ / giao</div>
@@ -236,6 +211,11 @@
             <p class="text-xs text-stone-600 leading-relaxed">Khách gọi một món chính, đôi khi kèm món phụ hoặc đồ uống. Nâng sao để món đắt hơn và được gọi nhiều hơn. Phục vụ đủ khách, khách quen sẽ kể công thức món mới.</p>
             <div id="dishes-next-recipe" class="bg-amber-50/70 border border-amber-200/70 rounded-2xl p-3"></div>
             <div id="dishes-list" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5"></div>
+          </div>
+
+          <div id="panel-decor" class="hidden space-y-4">
+            <div id="decor-rank-card" class="bg-amber-50/70 border border-amber-200/70 rounded-2xl p-3.5 space-y-3"></div>
+            <div id="decor-list" class="space-y-3"></div>
           </div>
 
           <div id="panel-expansion" class="hidden space-y-4">
@@ -333,6 +313,8 @@
   <script src="js/customers.js"></script>
   <script src="js/staff.js"></script>
   <script src="js/dishes.js"></script>
+  <script src="js/decor.js"></script>
+  <script src="js/menu.js"></script>
   <script src="js/simulation.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/main.js"></script>

@@ -2,7 +2,7 @@
   "name": "Bếp Phố Logistics — Quản Lý Nhà Hàng & Giao Nhận 3D",
   "short_name": "Bếp Phố 3D",
   "description": "Game mô phỏng quản lý nhà hàng ẩm thực Việt Nam kết hợp logistics 3D Isometric.",
-  "start_url": "./",
+  "start_url": "./logistics.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",

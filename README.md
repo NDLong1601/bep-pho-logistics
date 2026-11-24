@@ -1,40 +1,36 @@
-# Bếp Phố Logistics — Game Quản Lý Nhà Hàng & Giao Nhận 3D Isometric
+# Bếp Phố
 
-Game quản lý nhà hàng kết hợp logistics phong cách mô hình 3D Isometric nhẹ nhàng, xây dựng bằng **HTML5 + Three.js + Tailwind CSS**, không cần bước build (chạy trực tiếp trên **GitHub Pages**).
+Bước 2 đưa vào bản chơi **Quán Phở 2D** với bốn bàn, ba món và ba vai trò nhân viên. Phiên bản **Logistics 3D** mở từ liên kết cuối trang hoặc `logistics.html`. Hai phiên bản có tiến trình riêng trong trình duyệt.
 
-## Cấu trúc mã nguồn
+## Chạy tại máy
 
-```text
-bep-pho-logistics/
-├── index.html          # Trang chính của game
-├── .nojekyll           # Tắt Jekyll khi deploy GitHub Pages
-├── css/
-│   └── style.css       # Giao diện HUD, hiệu ứng kính mờ, responsive
-└── js/
-    ├── config.js       # GAME_CONFIG: thông số phòng, lưới đất, đơn hàng
-    ├── audio.js        # Âm thanh tổng hợp bằng Web Audio API
-    ├── state.js        # Trạng thái game, lưu/tải LocalStorage
-    ├── textures.js     # Vân sàn gỗ/gạch/bê tông & tranh tường tạo tự động
-    ├── scene.js        # Camera 3D Isometric, ánh sáng, đổ bóng, lưới đất
-    ├── builders.js     # Dựng mô hình 3D nội thất & nhân vật cho từng phòng
-    ├── simulation.js   # Vòng lặp sản xuất, di chuyển nhân vật, hiệu ứng
-    ├── ui.js           # Thanh tài nguyên, đơn hàng, bảng nâng cấp/xây mới
-    └── main.js         # Điều khiển chuột/cảm ứng/phím tắt và khởi chạy
+Game dùng HTML, CSS và JavaScript, không cần bước build. Khởi chạy từ thư mục repo:
+
+```sh
+python -m http.server 8000
 ```
 
-## Hướng dẫn Deploy lên GitHub Pages
+Mở `http://localhost:8000/` để chơi Quán Phở. Bấm **Mở cửa**, rồi chạm một bàn có nhãn **Xếp khách**. Nhân viên sẽ tự nhận việc. Chạm bàn để giao việc thủ công khi tắt tự làm. Có thể bật **Tự xếp bàn**, nhập thêm nguyên liệu và đào tạo nhân viên giữa các lượt phục vụ.
 
-1. Tạo repository mới trên GitHub (ví dụ: `bep-pho-logistics`).
-2. Giải nén toàn bộ thư mục này và đẩy các tệp (`index.html`, `.nojekyll`, `css/`, `js/`) lên nhánh `main`.
-3. Vào **Settings → Pages → Build and deployment**:
-   - **Source**: `Deploy from a branch`
-   - **Branch**: `main` / `/ (root)` → nhấn **Save**.
-4. Chờ khoảng 1 phút để truy cập game tại `https://<username>.github.io/bep-pho-logistics/`.
+Chạy bộ kiểm tra logic trên Node.js:
 
-## Hướng dẫn Mở rộng Game
+```sh
+node --test tests/quan.test.mjs
+```
 
-- **Thêm loại phòng mới:**
-  1. Thêm 1 mục mới vào `GAME_CONFIG.rooms` trong `js/config.js` (tên, giá, đầu vào `requires`, hàm sản xuất `produce`, màu sàn/tường).
-  2. Thêm hàm dựng nội thất 3D tương ứng vào `ROOM_BUILDERS` trong `js/builders.js`.
-- **Mở rộng bản đồ đất:** Tăng `GRID_COLS` và `GRID_ROWS` trong `js/config.js` (mặc định `4 x 4 = 16` ô).
-- **Thêm đơn hàng / nhiệm vụ:** Thêm phần tử mới vào mảng `GAME_CONFIG.contracts` trong `js/config.js`.
+Kịch bản Playwright dùng seed 2026. Dùng một phiên trình duyệt thử riêng vì test đặt lại dữ liệu Quán Phở của phiên đó:
+
+```sh
+npx --yes --package @playwright/cli playwright-cli -s=bep-pho-test open http://localhost:8000/
+npx --yes --package @playwright/cli playwright-cli -s=bep-pho-test run-code --filename tests/quan.browser.js
+```
+
+Luật và dữ liệu nằm ở `quan/game.js`. Cảnh Canvas ở `quan/scene.js`, giao diện ở `quan/app.js` và `quan/style.css`. Phạm vi và kịch bản chơi thử nằm trong [brief bước 2](design/game-brief.md).
+
+## Đưa lên GitHub Pages
+
+Chọn nhánh muốn phát hành và thư mục `/ (root)` trong cấu hình Pages. Trang gốc sẽ mở Quán Phở 2D. Bản Logistics 3D yêu cầu kết nối để tải các thư viện CDN của nó.
+
+### Source Logistics 3D
+
+Dữ liệu phòng, đơn và sự kiện ở `js/config.js`. Khi thêm loại phòng, đăng ký bộ dựng trong `js/builders.js`. Các giới hạn mở rộng bản đồ nằm trong `GAME_CONFIG.gridTiers`; nhiệm vụ theo mốc nằm trong `GAME_CONFIG.contracts`.

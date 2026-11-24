@@ -82,3 +82,18 @@ Game theo hướng "3D hoạt hình ấm":
 ## Phiên bản file lưu
 
 `GAME_CONFIG.SAVE_VERSION` (trong `js/config.js`) ghi phiên bản của file lưu. Khi đổi cấu trúc lưu hoặc kinh tế, tăng số này và thêm một bước chuyển đổi vào `SAVE_MIGRATIONS` trong `js/state.js` để bản lưu cũ vẫn chơi tiếp được.
+
+## Quán Phở 2D
+
+Mở `quan-pho.html` hoặc chọn **Menu → Cài đặt → Thử Quán Phở 2D** trong Bếp Phố Logistics. Bản thử 2D có một quán, bốn bàn, ba món và tiến trình lưu riêng.
+
+Chạy `python -m http.server 8000` từ thư mục repo, rồi mở `http://localhost:8000/quan-pho.html`. Kiểm tra logic bằng `node --test tests/quan.test.mjs`.
+
+Để chạy kịch bản trình duyệt với seed cố định, dùng một phiên Playwright riêng vì test đặt lại bản lưu 2D trong phiên đó:
+
+```sh
+npx --yes --package @playwright/cli playwright-cli -s=bep-pho-test open http://localhost:8000/quan-pho.html
+npx --yes --package @playwright/cli playwright-cli -s=bep-pho-test run-code --filename tests/quan.browser.js
+```
+
+Xem [brief Quán Phở 2D](design/game-brief.md) để biết phạm vi bản thử.

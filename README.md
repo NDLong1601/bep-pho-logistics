@@ -20,6 +20,7 @@ bep-pho-logistics/
     ├── textures.js     # Vân sàn gỗ/gạch/bê tông & tranh tường tạo tự động
     ├── scene.js        # Camera 3D Isometric, ánh sáng, đổ bóng, lưới đất
     ├── builders.js     # Dựng mô hình 3D nội thất & nhân vật cho từng phòng
+    ├── customers.js    # Khách thật: xếp hàng, ngồi bàn, ăn, trả tiền; nồi nước dùng & bồn rửa
     ├── simulation.js   # Vòng lặp sản xuất, di chuyển nhân vật, hiệu ứng
     ├── ui.js           # Thanh tài nguyên, đơn hàng, bảng nâng cấp/xây mới
     └── main.js         # Điều khiển chuột/cảm ứng/phím tắt và khởi chạy
@@ -33,6 +34,14 @@ bep-pho-logistics/
    - **Source**: `Deploy from a branch`
    - **Branch**: `main` / `/ (root)` → nhấn **Save**.
 4. Chờ khoảng 1 phút để truy cập game tại `https://<username>.github.io/bep-pho-logistics/`.
+
+## Vòng chơi nhà hàng
+
+- Khách đi từ phố vào **Phòng Ăn**, xếp hàng (có thanh kiên nhẫn), ngồi vào ghế trống, chờ món từ quầy bếp, ăn rồi trả tiền và để lại một bát bẩn. Chờ quá lâu thì khách bỏ về và quán mất 1 Uy tín.
+- Số ghế theo cấp Phòng Ăn (Lv.1: 4 ghế, Lv.2: 6, Lv.4: 8). Uy tín càng cao khách đến càng đông.
+- **Bếp** cần nước dùng: mỗi bát dùng 1 phần từ nồi. Hết nồi thì nhân viên tự ninh nồi mới (tốn Kho, mất vài giây); có thể ninh sớm trong bảng Bếp.
+- **Bồn rửa** đầy bát bẩn thì bếp dừng. Nhân viên bếp rửa chậm; nhấn bong bóng 🧽 trên Bếp để rửa nhanh.
+- Thông số nằm ở `GAME_CONFIG.restaurant` trong `js/config.js`.
 
 ## Hướng dẫn Mở rộng Game
 

@@ -280,6 +280,14 @@
       background: #2F7D63;
       box-shadow: 0 4px 10px rgba(47, 125, 99, 0.32);
     }
+    .room-chore-btn.opportunity {
+      animation: none;
+    }
+    .room-chore-btn:disabled {
+      background: #8A725C;
+      box-shadow: none;
+      cursor: default;
+    }
 
     @keyframes ticketShake {
       0%, 100% { transform: translateX(0); }

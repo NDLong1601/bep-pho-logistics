@@ -352,17 +352,13 @@ const ROOM_BUILDERS = {
     // POS tablet on counter
     addBox(g, 0.26, 0.20, 0.05, -0.35, 1.00, -1.30, 0x2F353C, { rotY: 0.2 });
 
-    // Cozy Dining Tables + Chairs
-    const tables = [[-0.85, 0.62], [0.85, 0.68]];
-    if (room.level >= 2) tables.push([1.15, -0.38]);
-    if (room.level >= 4) tables.push([-0.85, -0.38]);
-
-    tables.forEach(([tx, tz]) => {
+    // Cozy Dining Tables + Chairs (layout shared with customer seating in customers.js;
+    // bowls appear when real customers are served)
+    getDiningTables(room.level).forEach(([tx, tz]) => {
       addBox(g, 0.88, 0.07, 0.88, tx, 0.56, tz, 0xC68E5A, { roughness: 0.58 });
       addCyl(g, 0.07, 0.09, 0.54, tx, 0.27, tz, 0x5A4130);
-      // Warm ceramic bowls on table
-      addCyl(g, 0.11, 0.08, 0.06, tx - 0.16, 0.62, tz + 0.08, 0xFAF6F0);
-      addCyl(g, 0.11, 0.08, 0.06, tx + 0.16, 0.62, tz - 0.10, 0xFAF6F0);
+      // Chopstick holder
+      addCyl(g, 0.035, 0.035, 0.12, tx, 0.65, tz - 0.3, 0x8A5A35);
       if (room.level >= 4) {
         addCyl(g, 0.07, 0.09, 0.12, tx, 0.66, tz, 0xFFE3A3, { emissive: 0xFFAF45, emissiveIntensity: 0.6 });
       }
@@ -828,9 +824,9 @@ function rebuildRooms3D() {
 
     // Spawn 3D animated mini characters inside room
     const roomAgents = [];
-    const totalChars = room.staff + (room.type === 'dining' ? 1 : 0);
+    const totalChars = room.staff;
     for (let i = 0; i < totalChars; i++) {
-      const isGuest = room.type === 'dining' && i === totalChars - 1;
+      const isGuest = false;
       const charMesh = createMiniCharacter(room.type, isGuest ? 0xD4828E : cfg.staffColor, isGuest);
       const ax = (Math.random() - 0.5) * 2.2;
       const az = (Math.random() - 0.5) * 2.2;
@@ -869,6 +865,7 @@ function rebuildRooms3D() {
     tag.className = 'room-tag';
     tag.innerHTML = `
       <button type="button" class="room-hazard-btn hidden"></button>
+      <button type="button" class="room-hazard-btn room-chore-btn hidden"></button>
       <div class="room-tag-row">
         <span>${cfg.icon}</span>
         <span class="room-tag-lv">Lv.${room.level}</span>
@@ -879,7 +876,11 @@ function rebuildRooms3D() {
       <div class="room-tag-warn hidden"></div>
       <div class="room-tag-bar"><div class="room-tag-fill" style="width:${Math.round(room.progress * 100)}%"></div></div>
     `;
-    const hzBtn = tag.querySelector('.room-hazard-btn');
+    tag.querySelector('.room-chore-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      runKitchenChore(room);
+    });
+    const hzBtn = tag.querySelector('.room-hazard-btn:not(.room-chore-btn)');
     hzBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       resolveRoomHazard(room.gx, room.gy);
@@ -928,7 +929,8 @@ function spawnStreetWalker(visitRestaurant = false, isVip = false) {
   worldAgentsGroup.add(mesh);
 
   const waypoints = [];
-  const diningRooms = state.rooms.filter(r => r.type === 'dining' || r.type === 'cafe');
+  // Dining room guests are simulated in customers.js; only café visitors are decorative.
+  const diningRooms = state.rooms.filter(r => r.type === 'cafe');
 
   if (visitRestaurant && diningRooms.length > 0) {
     const gridSize = getGridSize();

@@ -8,6 +8,9 @@ function createInitialState() {
     ingredients: 12,
     dishes: 4,
     parcels: 0,
+    broth: 24,
+    brothCooking: 0,
+    dirtyBowls: 0,
     rep: 10,
     playerLevel: 1,
     exp: 0,
@@ -58,7 +61,16 @@ let hazardSpawnTimer = 9;
 const SAVE_MIGRATIONS = [
   // v1 -> v2: saves before versioning existed. Nothing to convert yet;
   // the defaults in normalizeLoadedState fill any missing fields.
-  (s) => s
+  (s) => s,
+  // v2 -> v3: real customers, broth pot and dish sink. Start with a full pot
+  // and an empty sink; drop dining-room order tickets (diners are real now).
+  (s) => {
+    if (typeof s.broth !== 'number') s.broth = 24;
+    if (typeof s.brothCooking !== 'number') s.brothCooking = 0;
+    if (typeof s.dirtyBowls !== 'number') s.dirtyBowls = 0;
+    if (Array.isArray(s.tickets)) s.tickets = s.tickets.filter(t => t.tplId !== 'bistro_table' && t.tplId !== 'vip_critic');
+    return s;
+  }
 ];
 
 function migrateSave(parsed) {
@@ -92,6 +104,9 @@ function normalizeLoadedState(parsed) {
   if (typeof s.playerLevel !== 'number' || s.playerLevel < 1) s.playerLevel = 1;
   if (typeof s.exp !== 'number' || s.exp < 0) s.exp = 0;
   if (typeof s.totalExp !== 'number' || s.totalExp < 0) s.totalExp = 0;
+  if (typeof s.broth !== 'number' || s.broth < 0) s.broth = 0;
+  if (typeof s.brothCooking !== 'number' || s.brothCooking < 0) s.brothCooking = 0;
+  if (typeof s.dirtyBowls !== 'number' || s.dirtyBowls < 0) s.dirtyBowls = 0;
   s.autoNextDay = !!s.autoNextDay;
   return s;
 }
@@ -322,12 +337,31 @@ const RESOURCE_LABELS = {
 
 function getMissingInputInfo(room) {
   const cfg = GAME_CONFIG.rooms[room.type];
-  if (!cfg || !cfg.requires) return null;
-  for (const [key, needed] of Object.entries(cfg.requires)) {
+  if (!cfg) return null;
+  for (const [key, needed] of Object.entries(cfg.requires || {})) {
     const current = state[key] || 0;
     if (current < needed) {
       const label = RESOURCE_LABELS[key] ? `Thiếu ${RESOURCE_LABELS[key]}` : `Thiếu ${key}`;
-      return { key, label, needed, current };
+      return { key, label, needed, current, detail: `Cần ${needed}, hiện có ${current}` };
+    }
+  }
+  if (room.type === 'kitchen') {
+    const dirty = Math.ceil(state.dirtyBowls || 0);
+    const sinkCap = getSinkCap();
+    if (dirty >= sinkCap) {
+      return { key: 'dirtyBowls', label: 'Bồn rửa đầy', needed: sinkCap, current: dirty, detail: `${dirty}/${sinkCap} bát bẩn, nhấn Rửa bát` };
+    }
+    if ((state.broth || 0) < 1) {
+      const cooking = state.brothCooking > 0;
+      return {
+        key: 'broth',
+        label: cooking ? 'Đang ninh nước dùng' : 'Hết nước dùng',
+        needed: 1,
+        current: 0,
+        detail: cooking
+          ? `Nồi mới xong sau ${Math.ceil(state.brothCooking)}s`
+          : `Cần ${GAME_CONFIG.restaurant.broth.ingredientCost} Kho để ninh nồi mới`
+      };
     }
   }
   return null;
@@ -437,7 +471,8 @@ function spawnCustomerTicket() {
     return true;
   });
 
-  const pool = eligible.length > 0 ? eligible : [templates[0]];
+  if (!eligible.length) return null;
+  const pool = eligible;
   const tpl = pool[Math.floor(Math.random() * pool.length)];
 
   let amount = tpl.amount;
@@ -762,7 +797,15 @@ function getNetResourceRates() {
   const rates = { coins: 0, ingredients: 0, dishes: 0, parcels: 0 };
   for (const room of state.rooms) {
     const cfg = GAME_CONFIG.rooms[room.type];
-    if (!cfg || getMissingInputInfo(room)) continue;
+    if (!cfg) continue;
+    if (cfg.customerVenue) {
+      const est = estimateVenueRates(room, bonuses);
+      rates.coins += est.coins;
+      rates.dishes -= est.dishes;
+      continue;
+    }
+    if (getMissingInputInfo(room)) continue;
+    if (room.type === 'kitchen' && (state.dishes || 0) >= getDishCounterCap()) continue;
     const { cycleSec, output } = getRoomCycleStats(room, room.level, room.staff, bonuses);
     if (cfg.requires) {
       for (const [k, amt] of Object.entries(cfg.requires)) {

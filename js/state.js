@@ -62,6 +62,7 @@ const SAVE_MIGRATIONS = [
   // v1 -> v2: saves before versioning existed. Nothing to convert yet;
   // the defaults in normalizeLoadedState fill any missing fields.
   (s) => s,
+  // v3 -> v4 is below; crews are generated for every room on the next rebuild.
   // v2 -> v3: real customers, broth pot and dish sink. Start with a full pot
   // and an empty sink; drop dining-room order tickets (diners are real now).
   (s) => {
@@ -70,7 +71,10 @@ const SAVE_MIGRATIONS = [
     if (typeof s.dirtyBowls !== 'number') s.dirtyBowls = 0;
     if (Array.isArray(s.tickets)) s.tickets = s.tickets.filter(t => t.tplId !== 'bistro_table' && t.tplId !== 'vip_critic');
     return s;
-  }
+  },
+  // v3 -> v4: named crews (room.crew) and kitchen dishwashers (room.washers).
+  // ensureCrew() fills them in when the rooms are built, so nothing to convert.
+  (s) => s
 ];
 
 function migrateSave(parsed) {
@@ -429,7 +433,8 @@ function getComboMultiplier() {
 function getDailyUpkeep() {
   let total = 0;
   for (const room of state.rooms) {
-    total += 18 + (room.level - 1) * 8 + room.staff * 10;
+    const washers = Array.isArray(room.washers) ? room.washers.length : 0;
+    total += 18 + (room.level - 1) * 8 + (room.staff + washers) * GAME_CONFIG.staff.upkeepPerStaff;
   }
   const leanLv = getPerkBonus('lean_operation');
   return Math.max(0, Math.round(total * Math.pow(0.75, leanLv)));
@@ -706,7 +711,9 @@ function getRoomCycleStats(room, level = room.level, staff = room.staff, bonuses
   const cycleSec = 1 / Math.max(0.01, speed);
   const tierMult = Math.pow(1.20, Math.floor(level / 5));
   const totalOutMult = tierMult * effBonuses.mergeInfo.outputMult;
-  const output = cfg.produce(level, staff, totalOutMult, effBonuses);
+  // Crew traits add "effective staff"; dozing members count as nobody.
+  const effStaff = Math.max(0.5, staff + getCrewStaffBonus(room));
+  const output = cfg.produce(level, effStaff, totalOutMult, effBonuses);
   const expGain = Math.max(2, Math.round((cfg.expPerCycle || 8) * (1 + (level - 1) * 0.18) * effBonuses.mergeInfo.outputMult));
   return { cycleSec, output, expGain, synergy: effBonuses.synergy, mergeInfo: effBonuses.mergeInfo, phase: effBonuses.phase, menu: effBonuses.menu };
 }
@@ -806,6 +813,7 @@ function getNetResourceRates() {
     }
     if (getMissingInputInfo(room)) continue;
     if (room.type === 'kitchen' && (state.dishes || 0) >= getDishCounterCap()) continue;
+    if (isStorageRoom(room) && (state.ingredients || 0) >= getIngredientCap()) continue;
     const { cycleSec, output } = getRoomCycleStats(room, room.level, room.staff, bonuses);
     if (cfg.requires) {
       for (const [k, amt] of Object.entries(cfg.requires)) {

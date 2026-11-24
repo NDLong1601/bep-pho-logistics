@@ -4,7 +4,7 @@
 const GAME_CONFIG = {
   SAVE_KEY: 'bep_pho_logistics_v1',
   // Bump when the save format changes and add a step to SAVE_MIGRATIONS in state.js.
-  SAVE_VERSION: 3,
+  SAVE_VERSION: 4,
   GRID_COLS: 4,
   GRID_ROWS: 4,
   TILE_SIZE: 4.4,
@@ -436,7 +436,26 @@ const GAME_CONFIG = {
     },
     broth: { baseCap: 24, capPerLevel: 8, ingredientCost: 6, simmerSec: 18 },
     sink: { baseCap: 10, capPerLevel: 4, autoWashPerStaffSec: 0.06, washPerTap: 5 },
-    counter: { baseCap: 10, capPerLevel: 4 }  // bowls ready at the pass
+    counter: { baseCap: 10, capPerLevel: 4 },  // bowls ready at the pass
+    // Ingredient storage: warehouses idle when full. cap = base + perStorageLevel × (sum of warehouse & cold storage levels)
+    storage: { baseCap: 25, perStorageLevel: 15 }
+  },
+
+  staff: {
+    traits: [
+      { id: 'cham_chi', name: 'Chăm chỉ', icon: '💪', desc: 'làm đều tay, không bao giờ lơ là', staffBonus: 0.2, weight: 3 },
+      { id: 'nhanh', name: 'Nhanh nhẹn', icon: '⚡', desc: 'đi lại và làm việc nhanh hơn', staffBonus: 0.3, speedMult: 1.35, weight: 3 },
+      { id: 'chu_dao', name: 'Chu đáo', icon: '🤝', desc: 'khách trong phòng kiên nhẫn hơn 15%', staffBonus: 0.15, patienceBonus: 0.15, weight: 2 },
+      { id: 'ngu_gat', name: 'Hay ngủ gật', icon: '💤', desc: 'tỉnh thì làm rất giỏi, nhưng thỉnh thoảng ngủ gật', staffBonus: 0.45, dozes: true, weight: 2 }
+    ],
+    dozeEverySec: [35, 75],   // time awake between naps
+    dozeMaxSec: 30,           // wakes up alone after this if nobody taps
+    wakeExp: 5,
+    waiterSpeed: 1.6,
+    washerCost: 160,
+    maxWashersPerKitchen: 2,
+    washerBowlsPerSec: 0.25,
+    upkeepPerStaff: 10
   },
 
   perkCards: [

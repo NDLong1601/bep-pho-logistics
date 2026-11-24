@@ -1,10 +1,37 @@
 // =========================================================================
 // 8. SIMULATION LOOP
 // =========================================================================
+function updateCutawayWalls() {
+  const cutNX = Math.sin(camYawCurrent) < -0.05;
+  const cutNZ = Math.cos(camYawCurrent) < -0.05;
+  const targetNX = cutNX ? 0.26 : 1.0;
+  const targetNZ = cutNZ ? 0.26 : 1.0;
+
+  roomMeshesMap.forEach((entry) => {
+    if (entry.wallNX) {
+      entry.wallNX.scale.y += (targetNX - entry.wallNX.scale.y) * 0.18;
+    }
+    if (entry.wallNZ) {
+      entry.wallNZ.scale.y += (targetNZ - entry.wallNZ.scale.y) * 0.18;
+    }
+    if (entry.windowNX) {
+      entry.windowNX.visible = !cutNX;
+    }
+    if (entry.wallPropsNX) {
+      for (const prop of entry.wallPropsNX) prop.visible = !cutNX;
+    }
+    if (entry.wallPropsNZ) {
+      for (const prop of entry.wallPropsNZ) prop.visible = !cutNZ;
+    }
+  });
+}
+
 function updateSimulation(dt, timeSec) {
+  updateCutawayWalls();
   if (isPaused) return;
   const effDt = dt * gameSpeed;
   const bonuses = getGlobalBonuses();
+  let starvedChanged = false;
 
   state.dayTimer += effDt;
   if (state.dayTimer >= 45) {
@@ -17,14 +44,13 @@ function updateSimulation(dt, timeSec) {
     const cfg = GAME_CONFIG.rooms[room.type];
     if (!cfg) continue;
 
-    let hasInputs = true;
-    if (cfg.requires) {
-      for (const [k, amt] of Object.entries(cfg.requires)) {
-        if ((state[k] || 0) < amt) hasInputs = false;
-      }
-    }
+    const missing = getMissingInputInfo(room);
+    const wasStarved = !!room.starved;
+    const prevMissingLabel = room.missingLabel || '';
 
-    if (hasInputs) {
+    if (!missing) {
+      room.starved = false;
+      room.missingLabel = '';
       const speed = (1 / cfg.cycleTime) * bonuses.speedMult * (1 + (room.level - 1) * 0.14);
       room.progress += effDt * speed;
       if (room.progress >= 1) {
@@ -32,13 +58,26 @@ function updateSimulation(dt, timeSec) {
         completeRoomCycle(room, bonuses);
       }
     } else {
+      room.starved = true;
+      room.missingLabel = missing.label;
       room.progress = Math.min(room.progress, 0.15);
     }
 
+    if (wasStarved !== room.starved || prevMissingLabel !== room.missingLabel) {
+      starvedChanged = true;
+      if (selectedPlot && selectedPlot.gx === room.gx && selectedPlot.gy === room.gy) {
+        updateSelectedRoomProgressOnly(room);
+      }
+    }
+
     // Kitchen steam wisps
-    if (room.type === 'kitchen' && Math.random() < effDt * 2.2) {
+    if (room.type === 'kitchen' && !room.starved && Math.random() < effDt * 2.2) {
       spawnSteamPuff(room.gx, room.gy);
     }
+  }
+
+  if (starvedChanged) {
+    updateHUD();
   }
 
   // Animate room hooks (conveyors, vans) and 3D characters
@@ -80,6 +119,7 @@ function updateSimulation(dt, timeSec) {
     p.mesh.scale.setScalar(1 + (1 - p.life / p.maxLife) * 1.4);
     p.mesh.material.opacity = Math.max(0, (p.life / p.maxLife) * 0.42);
     if (p.life <= 0) {
+      if (p.mesh.material) p.mesh.material.dispose();
       effectsGroup.remove(p.mesh);
       steamPuffs.splice(i, 1);
     }
@@ -133,15 +173,41 @@ function syncOverlays() {
     const topPos = entry.group.position.clone();
     topPos.y = GAME_CONFIG.WALL_HEIGHT + 0.55;
     const sc = worldToScreen(topPos);
-    tag.style.left = `${sc.x}px`;
-    tag.style.top = `${sc.y}px`;
-    const fill = tag.querySelector('.room-tag-fill');
-    if (fill) fill.style.width = `${Math.min(100, Math.round(entry.room.progress * 100))}%`;
+    tag.style.transform = `translate3d(${sc.x.toFixed(1)}px, ${sc.y.toFixed(1)}px, 0) translate(-50%, -100%)`;
+
+    const pct = `${Math.min(100, Math.round(entry.room.progress * 100))}%`;
+    if (tag.dataset.pct !== pct) {
+      tag.dataset.pct = pct;
+      const fill = tag.querySelector('.room-tag-fill');
+      if (fill) fill.style.width = pct;
+    }
+
+    const isStarved = !!entry.room.starved;
+    if (tag.dataset.starved !== String(isStarved)) {
+      tag.dataset.starved = String(isStarved);
+      tag.classList.toggle('starved', isStarved);
+    }
+
+    const warnText = isStarved ? `⚠️ ${entry.room.missingLabel || 'Thiếu đầu vào'}` : '';
+    if (tag.dataset.warn !== warnText) {
+      tag.dataset.warn = warnText;
+      const warnEl = tag.querySelector('.room-tag-warn');
+      if (warnEl) {
+        warnEl.textContent = warnText;
+        warnEl.classList.toggle('hidden', !isStarved);
+      }
+    }
+
+    const canUpgrade = entry.room.level < GAME_CONFIG.MAX_LEVEL && state.coins >= getUpgradeCost(entry.room);
+    if (tag.dataset.canUp !== String(canUpgrade)) {
+      tag.dataset.canUp = String(canUpgrade);
+      const upEl = tag.querySelector('.room-tag-up');
+      if (upEl) upEl.classList.toggle('hidden', !canUpgrade);
+    }
   });
 
   for (const f of activeFloaters) {
     const sc = worldToScreen(f.pos);
-    f.el.style.left = `${sc.x}px`;
-    f.el.style.top = `${sc.y}px`;
+    f.el.style.transform = `translate3d(${sc.x.toFixed(1)}px, ${sc.y.toFixed(1)}px, 0) translate(-50%, -50%)`;
   }
 }

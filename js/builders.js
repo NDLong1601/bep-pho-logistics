@@ -17,27 +17,42 @@ function buildRoomShell(room, cfg) {
     map: floorTex, roughness: 0.82, castShadow: false
   });
 
-  // Back-Left Wall (along -X) & Back-Right Wall (along -Z)
+  // Back-Left Wall (along -X) & Back-Right Wall (along -Z) wrapped for dynamic cutaway
   const hs = s / 2;
-  addBox(group, wallT, wh, s, -hs + wallT / 2, floorH + wh / 2, 0, cfg.wallColor, { roughness: 0.88 });
-  addBox(group, s, wh, wallT, 0, floorH + wh / 2, -hs + wallT / 2, cfg.wallColor, { roughness: 0.88 });
+  const wallNX = new THREE.Group();
+  wallNX.position.set(0, floorH, 0);
+  wallNX.userData = { wallSide: 'NX' };
+  group.add(wallNX);
+
+  const wallNZ = new THREE.Group();
+  wallNZ.position.set(0, floorH, 0);
+  wallNZ.userData = { wallSide: 'NZ' };
+  group.add(wallNZ);
+
+  addBox(wallNX, wallT, wh, s, -hs + wallT / 2, wh / 2, 0, cfg.wallColor, { roughness: 0.88 });
+  addBox(wallNZ, s, wh, wallT, 0, wh / 2, -hs + wallT / 2, cfg.wallColor, { roughness: 0.88 });
 
   // Wooden top cap trim on back walls
-  addBox(group, wallT + 0.05, 0.09, s + 0.04, -hs + wallT / 2, floorH + wh + 0.04, 0, cfg.trimColor, { roughness: 0.6 });
-  addBox(group, s + 0.04, 0.09, wallT + 0.05, 0, floorH + wh + 0.04, -hs + wallT / 2, cfg.trimColor, { roughness: 0.6 });
+  addBox(wallNX, wallT + 0.05, 0.09, s + 0.04, -hs + wallT / 2, wh + 0.04, 0, cfg.trimColor, { roughness: 0.6 });
+  addBox(wallNZ, s + 0.04, 0.09, wallT + 0.05, 0, wh + 0.04, -hs + wallT / 2, cfg.trimColor, { roughness: 0.6 });
+
+  let windowNX = null;
 
   // Modern Glass Window with wooden mullions on Back-Left wall
   if (cfg.glassFront) {
     const winH = wh - 0.55;
-    addBox(group, 0.05, winH, 2.2, -hs + wallT + 0.01, floorH + 0.35 + winH / 2, 0.15, 0xB8DDF0, {
+    windowNX = new THREE.Group();
+    wallNX.add(windowNX);
+
+    addBox(windowNX, 0.05, winH, 2.2, -hs + wallT + 0.01, 0.35 + winH / 2, 0.15, 0xB8DDF0, {
       transparent: true, opacity: 0.42, roughness: 0.12, metalness: 0.15, castShadow: false
     });
     // Mullion frames
-    addBox(group, 0.08, winH + 0.08, 0.07, -hs + wallT + 0.02, floorH + 0.35 + winH / 2, -0.95, cfg.trimColor);
-    addBox(group, 0.08, winH + 0.08, 0.07, -hs + wallT + 0.02, floorH + 0.35 + winH / 2, 0.15, cfg.trimColor);
-    addBox(group, 0.08, winH + 0.08, 0.07, -hs + wallT + 0.02, floorH + 0.35 + winH / 2, 1.25, cfg.trimColor);
-    addBox(group, 0.08, 0.07, 2.26, -hs + wallT + 0.02, floorH + 0.35, 0.15, cfg.trimColor);
-    addBox(group, 0.08, 0.07, 2.26, -hs + wallT + 0.02, floorH + 0.35 + winH, 0.15, cfg.trimColor);
+    addBox(windowNX, 0.08, winH + 0.08, 0.07, -hs + wallT + 0.02, 0.35 + winH / 2, -0.95, cfg.trimColor);
+    addBox(windowNX, 0.08, winH + 0.08, 0.07, -hs + wallT + 0.02, 0.35 + winH / 2, 0.15, cfg.trimColor);
+    addBox(windowNX, 0.08, winH + 0.08, 0.07, -hs + wallT + 0.02, 0.35 + winH / 2, 1.25, cfg.trimColor);
+    addBox(windowNX, 0.08, 0.07, 2.26, -hs + wallT + 0.02, 0.35, 0.15, cfg.trimColor);
+    addBox(windowNX, 0.08, 0.07, 2.26, -hs + wallT + 0.02, 0.35 + winH, 0.15, cfg.trimColor);
 
     // Low front architectural glass partition with wood posts (cutaway feel)
     const railH = 0.62;
@@ -61,7 +76,14 @@ function buildRoomShell(room, cfg) {
   const builder = ROOM_BUILDERS[room.type];
   if (builder) builder(interior, room, animHooks);
 
-  return { group, interior, animHooks };
+  const wallPropsNX = [];
+  const wallPropsNZ = [];
+  interior.traverse((child) => {
+    if (child.userData && child.userData.wallSide === 'NX') wallPropsNX.push(child);
+    if (child.userData && child.userData.wallSide === 'NZ') wallPropsNZ.push(child);
+  });
+
+  return { group, interior, animHooks, wallNX, wallNZ, windowNX, wallPropsNX, wallPropsNZ };
 }
 
 const ROOM_BUILDERS = {
@@ -116,8 +138,10 @@ const ROOM_BUILDERS = {
     });
 
     // Overhead stainless range hood
-    addBox(g, 2.1, 0.26, 0.72, 0.15, 1.88, -1.48, 0xCFD8E0, { roughness: 0.3, metalness: 0.45 });
-    addBox(g, 0.42, 0.45, 0.36, 0.15, 2.18, -1.56, 0xBCC7D1, { metalness: 0.4 });
+    const hood1 = addBox(g, 2.1, 0.26, 0.72, 0.15, 1.88, -1.48, 0xCFD8E0, { roughness: 0.3, metalness: 0.45 });
+    const hood2 = addBox(g, 0.42, 0.45, 0.36, 0.15, 2.18, -1.56, 0xBCC7D1, { metalness: 0.4 });
+    hood1.userData.wallSide = 'NZ';
+    hood2.userData.wallSide = 'NZ';
 
     // Central wooden butcher-block prep island
     addBox(g, 1.75, 0.66, 0.88, 0.05, 0.33, 0.35, 0xEFE6D8, { roughness: 0.75 });
@@ -136,7 +160,8 @@ const ROOM_BUILDERS = {
 
   dining(g, room) {
     // Framed Bistro Menu on back-right wall
-    addBox(g, 1.45, 0.82, 0.06, 0.25, 1.48, -1.86, 0xFFFFFF, { map: makeWallArtTexture('menu'), roughness: 0.6 });
+    const menuArt = addBox(g, 1.45, 0.82, 0.06, 0.25, 1.48, -1.86, 0xFFFFFF, { map: makeWallArtTexture('menu'), roughness: 0.6 });
+    menuArt.userData.wallSide = 'NZ';
 
     // Warm wood-slat reception / order counter
     addBox(g, 1.95, 0.84, 0.62, 0.15, 0.42, -1.32, 0x9A653E, { roughness: 0.65 });
@@ -164,8 +189,10 @@ const ROOM_BUILDERS = {
 
   packing(g, room, animHooks) {
     // Tall KPI Whiteboard on back-right wall (homage to reference image!)
-    addBox(g, 1.85, 1.02, 0.06, 0.05, 1.42, -1.86, 0xFFFFFF, { map: makeWallArtTexture('kpi'), roughness: 0.4 });
-    addBox(g, 1.92, 0.06, 0.10, 0.05, 0.90, -1.84, 0x7A8794);
+    const kpiBoard = addBox(g, 1.85, 1.02, 0.06, 0.05, 1.42, -1.86, 0xFFFFFF, { map: makeWallArtTexture('kpi'), roughness: 0.4 });
+    const kpiTray = addBox(g, 1.92, 0.06, 0.10, 0.05, 0.90, -1.84, 0x7A8794);
+    kpiBoard.userData.wallSide = 'NZ';
+    kpiTray.userData.wallSide = 'NZ';
 
     // Roller conveyor belt
     addBox(g, 2.65, 0.54, 0.72, -0.05, 0.27, -0.35, 0x5C6D7D, { roughness: 0.5, metalness: 0.3 });
@@ -194,9 +221,11 @@ const ROOM_BUILDERS = {
 
   dispatch(g, room, animHooks) {
     // Roll-up garage bay frame on back-right wall
-    addBox(g, 2.15, 1.75, 0.12, 0.25, 0.88, -1.84, 0xB8C2CC, { roughness: 0.55, metalness: 0.25 });
+    const bayBack = addBox(g, 2.15, 1.75, 0.12, 0.25, 0.88, -1.84, 0xB8C2CC, { roughness: 0.55, metalness: 0.25 });
+    bayBack.userData.wallSide = 'NZ';
     for (let i = 0; i < 6; i++) {
-      addBox(g, 2.08, 0.03, 0.14, 0.25, 0.25 + i * 0.28, -1.83, 0x8F9AA6);
+      const slat = addBox(g, 2.08, 0.03, 0.14, 0.25, 0.25 + i * 0.28, -1.83, 0x8F9AA6);
+      slat.userData.wallSide = 'NZ';
     }
 
     // Parcel staging table on left
@@ -254,7 +283,8 @@ const ROOM_BUILDERS = {
 
   office(g, room) {
     // World / Logistics route map on back-left wall (direct homage to reference image!)
-    addBox(g, 0.06, 0.96, 1.65, -1.86, 1.45, -0.15, 0xFFFFFF, { map: makeWallArtTexture('map'), roughness: 0.65 });
+    const routeMap = addBox(g, 0.06, 0.96, 1.65, -1.86, 1.45, -0.15, 0xFFFFFF, { map: makeWallArtTexture('map'), roughness: 0.65 });
+    routeMap.userData.wallSide = 'NX';
 
     // Tall Mahogany Bookshelf on back-right wall filled with colorful binders
     addBox(g, 1.72, 1.75, 0.44, 0.48, 0.88, -1.62, 0x6B4026, { roughness: 0.65 });
@@ -280,7 +310,11 @@ const ROOM_BUILDERS = {
 
 // Rebuild all 3D rooms & sync agents/DOM badges
 function rebuildRooms3D() {
-  while (roomsGroup.children.length) roomsGroup.remove(roomsGroup.children[0]);
+  while (roomsGroup.children.length) {
+    const child = roomsGroup.children[0];
+    disposeObject3D(child);
+    roomsGroup.remove(child);
+  }
   roomMeshesMap.clear();
   roomTagMap.forEach(el => el.remove());
   roomTagMap.clear();
@@ -291,6 +325,7 @@ function rebuildRooms3D() {
     const pos = gridToWorld3D(room.gx, room.gy);
     const built = buildRoomShell(room, cfg);
     built.group.position.copy(pos);
+    built.group.userData = { gx: room.gx, gy: room.gy, isRoomGroup: true };
     roomsGroup.add(built.group);
 
     // Spawn 3D animated mini characters inside room
@@ -313,13 +348,29 @@ function rebuildRooms3D() {
     }
 
     const key = `${room.gx}_${room.gy}`;
-    roomMeshesMap.set(key, { room, group: built.group, interior: built.interior, animHooks: built.animHooks, agents: roomAgents });
+    roomMeshesMap.set(key, {
+      room,
+      group: built.group,
+      interior: built.interior,
+      animHooks: built.animHooks,
+      wallNX: built.wallNX,
+      wallNZ: built.wallNZ,
+      windowNX: built.windowNX,
+      wallPropsNX: built.wallPropsNX,
+      wallPropsNZ: built.wallPropsNZ,
+      agents: roomAgents
+    });
 
     // Floating crisp HTML room badge
     const tag = document.createElement('div');
     tag.className = 'room-tag';
     tag.innerHTML = `
-      <div class="room-tag-row"><span>${cfg.icon}</span><span>Lv.${room.level}</span></div>
+      <div class="room-tag-row">
+        <span>${cfg.icon}</span>
+        <span class="room-tag-lv">Lv.${room.level}</span>
+        <span class="room-tag-up hidden" title="Đủ Xu nâng cấp">↑</span>
+      </div>
+      <div class="room-tag-warn hidden"></div>
       <div class="room-tag-bar"><div class="room-tag-fill" style="width:${Math.round(room.progress * 100)}%"></div></div>
     `;
     overlayLayer.appendChild(tag);
@@ -373,7 +424,7 @@ function spawnFloater(gx, gy, text, color = '#A94D24') {
 function spawnSteamPuff(gx, gy) {
   const pos = gridToWorld3D(gx, gy);
   const puff = new THREE.Mesh(
-    new THREE.SphereGeometry(0.12, 8, 8),
+    sharedSteamGeo,
     new THREE.MeshBasicMaterial({ color: 0xFFFFFF, transparent: true, opacity: 0.45 })
   );
   puff.position.set(pos.x + (Math.random() - 0.5) * 0.7, 1.35, pos.z - 1.35);

@@ -2,30 +2,85 @@
 // 10. POINTER, PAN, ZOOM, ROTATE & CONTROLS
 // =========================================================================
 const dragState = { active: false, moved: false, sx: 0, sy: 0, startTarget: new THREE.Vector3() };
+const activePointers = new Map();
+let lastPinchDist = 0;
+
+function getPinchDistance() {
+  if (activePointers.size < 2) return 0;
+  const pts = Array.from(activePointers.values());
+  return Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+}
+
+function isHitVisibleAndValid(hit) {
+  let obj = hit.object;
+  while (obj) {
+    if (!obj.visible) return false;
+    if (obj.userData && obj.userData.wallSide && obj.scale && obj.scale.y < 0.9 && hit.point.y > 0.92) {
+      return false;
+    }
+    obj = obj.parent;
+  }
+  return true;
+}
 
 function pickPlot(clientX, clientY) {
   const rect = canvas.getBoundingClientRect();
   pointerNDC.x = ((clientX - rect.left) / rect.width) * 2 - 1;
   pointerNDC.y = -((clientY - rect.top) / rect.height) * 2 + 1;
   raycaster.setFromCamera(pointerNDC, camera);
-  const hits = raycaster.intersectObjects(plotHitMeshes, false);
-  if (hits.length > 0) return hits[0].object.userData;
+  const hits = raycaster.intersectObjects([roomsGroup, ...plotHitMeshes], true);
+  for (const hit of hits) {
+    if (!isHitVisibleAndValid(hit)) continue;
+    let curr = hit.object;
+    while (curr) {
+      if (curr.userData && typeof curr.userData.gx === 'number' && typeof curr.userData.gy === 'number') {
+        return { gx: curr.userData.gx, gy: curr.userData.gy };
+      }
+      if (curr === roomsGroup) break;
+      curr = curr.parent;
+    }
+  }
   return null;
 }
 
 canvas.addEventListener('pointerdown', (e) => {
   SoundFX.init();
-  dragState.active = true;
-  dragState.moved = false;
-  dragState.sx = e.clientX;
-  dragState.sy = e.clientY;
-  dragState.startTarget.copy(camTarget);
-  canvas.classList.add('dragging');
-  canvas.setPointerCapture(e.pointerId);
+  activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+
+  if (activePointers.size === 1) {
+    dragState.active = true;
+    dragState.moved = false;
+    dragState.sx = e.clientX;
+    dragState.sy = e.clientY;
+    dragState.startTarget.copy(camTarget);
+    lastPinchDist = 0;
+    canvas.classList.add('dragging');
+  } else if (activePointers.size === 2) {
+    dragState.active = false;
+    dragState.moved = true;
+    lastPinchDist = getPinchDistance();
+    canvas.classList.remove('dragging');
+  }
 });
 
 canvas.addEventListener('pointermove', (e) => {
-  if (dragState.active) {
+  if (activePointers.has(e.pointerId)) {
+    activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  }
+
+  if (activePointers.size === 2) {
+    dragState.moved = true;
+    const dist = getPinchDistance();
+    if (lastPinchDist > 0 && dist > 0) {
+      viewSize = Math.min(28, Math.max(8.5, viewSize * (lastPinchDist / dist)));
+      updateCameraProjection();
+    }
+    lastPinchDist = dist;
+    return;
+  }
+
+  if (dragState.active && activePointers.size <= 1) {
     const dx = e.clientX - dragState.sx;
     const dy = e.clientY - dragState.sy;
     if (Math.hypot(dx, dy) > 5) dragState.moved = true;
@@ -38,7 +93,7 @@ canvas.addEventListener('pointermove', (e) => {
       .addScaledVector(forward, dy * panScale * 1.65);
     camTarget.x = Math.max(-14, Math.min(14, camTarget.x));
     camTarget.z = Math.max(-14, Math.min(14, camTarget.z));
-  } else {
+  } else if (activePointers.size === 0) {
     const plot = pickPlot(e.clientX, e.clientY);
     const changed = (plot?.gx !== hoveredPlot?.gx) || (plot?.gy !== hoveredPlot?.gy);
     hoveredPlot = plot;
@@ -47,20 +102,32 @@ canvas.addEventListener('pointermove', (e) => {
   }
 });
 
-canvas.addEventListener('pointerup', (e) => {
-  if (!dragState.active) return;
-  dragState.active = false;
-  canvas.classList.remove('dragging');
-  if (!dragState.moved) {
-    const plot = pickPlot(e.clientX, e.clientY);
-    if (plot) {
-      SoundFX.click();
-      openInspector(plot.gx, plot.gy);
-    } else {
-      closeInspector();
+function handlePointerEnd(e) {
+  const wasSingleTap = e.type === 'pointerup' && dragState.active && !dragState.moved && activePointers.size === 1;
+  activePointers.delete(e.pointerId);
+  if (activePointers.size < 2) lastPinchDist = 0;
+
+  if (activePointers.size === 0) {
+    dragState.active = false;
+    canvas.classList.remove('dragging');
+    if (wasSingleTap) {
+      const plot = pickPlot(e.clientX, e.clientY);
+      if (plot) {
+        SoundFX.click();
+        openInspector(plot.gx, plot.gy);
+      } else {
+        closeInspector();
+      }
     }
+  } else {
+    dragState.active = false;
+    dragState.moved = true;
+    canvas.classList.remove('dragging');
   }
-});
+}
+
+canvas.addEventListener('pointerup', handlePointerEnd);
+canvas.addEventListener('pointercancel', handlePointerEnd);
 
 canvas.addEventListener('wheel', (e) => {
   e.preventDefault();

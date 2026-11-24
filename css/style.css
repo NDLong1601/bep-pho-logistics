@@ -99,7 +99,10 @@
 
     .room-tag {
       position: absolute;
-      transform: translate(-50%, -100%);
+      left: 0;
+      top: 0;
+      transform: translate3d(-9999px, -9999px, 0) translate(-50%, -100%);
+      will-change: transform;
       background: rgba(255, 253, 249, 0.9);
       backdrop-filter: blur(8px);
       border: 1px solid rgba(138, 114, 92, 0.26);
@@ -110,8 +113,12 @@
       flex-direction: column;
       align-items: center;
       gap: 2px;
-      transition: opacity 0.2s ease;
+      transition: opacity 0.2s ease, border-color 0.2s ease, background 0.2s ease;
       white-space: nowrap;
+    }
+    .room-tag.starved {
+      border-color: rgba(217, 95, 43, 0.65);
+      background: rgba(255, 248, 242, 0.95);
     }
     .room-tag-row {
       display: flex;
@@ -121,6 +128,26 @@
       font-weight: 700;
       color: #2C231D;
       letter-spacing: -0.01em;
+    }
+    .room-tag-up:not(.hidden) {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 4px;
+      height: 14px;
+      border-radius: 999px;
+      background: #2F7D63;
+      color: #FFFDF9;
+      font-size: 9px;
+      font-weight: 800;
+      line-height: 1;
+    }
+    .room-tag-warn:not(.hidden) {
+      display: block;
+      font-size: 9.5px;
+      font-weight: 700;
+      color: #B84A1E;
+      line-height: 1.1;
     }
     .room-tag-bar {
       width: 36px;
@@ -134,10 +161,16 @@
       background: linear-gradient(90deg, #D36C3D, #E8964B);
       border-radius: 99px;
     }
+    .room-tag.starved .room-tag-fill {
+      background: linear-gradient(90deg, #D9534F, #F0AD4E);
+    }
 
     .floater-pop {
       position: absolute;
-      transform: translate(-50%, -50%);
+      left: 0;
+      top: 0;
+      transform: translate3d(-9999px, -9999px, 0) translate(-50%, -50%);
+      will-change: transform, opacity;
       font-size: 11.5px;
       font-weight: 700;
       padding: 3px 9px;

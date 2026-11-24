@@ -112,7 +112,7 @@ function renderTicketRail() {
 
   const tickets = state.tickets || [];
   if (!tickets.length) {
-    rail.innerHTML = `<div class="hud-glass rounded-xl px-3 py-1.5 text-[11px] text-stone-500">⏳ Đang chờ khách gọi món...</div>`;
+    rail.innerHTML = '';
     return;
   }
 

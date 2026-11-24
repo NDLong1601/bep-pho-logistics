@@ -61,13 +61,22 @@ bep-pho-logistics/
 
 ## Thư viện cục bộ
 
-Game không tải thư viện từ CDN nữa. Three.js nằm ở `vendor/three.min.js` và Tailwind được biên dịch sẵn vào `css/tailwind.css`.
+Game không tải thư viện từ CDN nữa. Three.js nằm ở `vendor/three.min.js`, Tailwind được biên dịch sẵn vào `css/tailwind.css`, và font Baloo 2 (giấy phép SIL OFL) nằm ở `vendor/fonts/`.
 
 Khi thêm class Tailwind mới vào `index.html` hoặc `js/`, biên dịch lại CSS (cần Node.js):
 
 ```bash
 npx tailwindcss@3.4.17 --content "./index.html,./js/**/*.js" -o css/tailwind.css --minify
 ```
+
+## Phong cách hình ảnh
+
+Game theo hướng "3D hoạt hình ấm":
+
+- Mọi vật thể dùng `toonMat()` trong `js/scene.js` (đổ bóng kiểu hoạt hình 3 bậc) và có viền mực nâu bằng `addOutline()`.
+- Bảng màu được làm ấm và đậm hơn qua `artColor()`; chỉnh độ đậm và viền ở hằng `ART` trong cùng file.
+- Nhân vật chibi (`createMiniCharacter`) có đầu to, mắt, má hồng, tóc, mũ đầu bếp hoặc băng đô phục vụ.
+- Giao diện dùng viền đậm, nền giấy kem và nút nổi bấm lún. Toàn bộ nằm ở phần "CARTOON UI THEME" cuối `css/style.css`.
 
 ## Phiên bản file lưu
 

@@ -193,7 +193,7 @@ function buildDecor3D(room, group, interior, animHooks, isStreetFront) {
     if (has('den_long')) {
       [[-1.55, 1.55], [1.6, 1.55], [-1.55, -1.4]].forEach(([x, z]) => {
         addCyl(interior, 0.006, 0.006, 0.3, x, 2.0, z, 0x3D3530);
-        const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.15, 12, 10), new THREE.MeshStandardMaterial({ color: 0xD8332A, emissive: 0xE0452B, emissiveIntensity: 0.55, roughness: 0.5 }));
+        const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.15, 12, 10), toonMat({ color: 0xD8332A, emissive: 0xE0452B, emissiveIntensity: 0.55, roughness: 0.5 }));
         lamp.scale.y = 1.2;
         lamp.position.set(x, 1.75, z);
         interior.add(lamp);

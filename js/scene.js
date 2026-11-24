@@ -9,10 +9,65 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputEncoding = THREE.sRGBEncoding;
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.06;
+renderer.toneMapping = THREE.NoToneMapping;
+renderer.toneMappingExposure = 1.0;
 
 const scene = new THREE.Scene();
+
+// ---- Art style: warm cartoon (toon shading + soft ink outlines) -----------
+const ART = {
+  saturation: 1.2,   // pushes the pastel palette towards warmer, livelier colours
+  outline: 0x3B2A20,  // dark brown ink, softer than black
+  outlineWidth: 0.022
+};
+const toonGradient = (() => {
+  const data = new Uint8Array([120, 120, 120, 200, 200, 200, 255, 255, 255]);
+  const tex = new THREE.DataTexture(data, 3, 1, THREE.RGBFormat);
+  tex.minFilter = THREE.NearestFilter;
+  tex.magFilter = THREE.NearestFilter;
+  tex.generateMipmaps = false;
+  tex.needsUpdate = true;
+  return tex;
+})();
+function artColor(c) {
+  const col = new THREE.Color(c);
+  const hsl = {};
+  col.getHSL(hsl);
+  // Deepen near-whites a little so walls and floors stop washing out.
+  const l = hsl.l > 0.78 ? 0.78 + (hsl.l - 0.78) * 0.55 : hsl.l;
+  col.setHSL(hsl.h, Math.min(1, hsl.s * ART.saturation + (hsl.l > 0.78 ? 0.08 : 0)), l);
+  return col;
+}
+// Drop-in replacement for MeshStandardMaterial params.
+function toonMat(p = {}) {
+  const m = new THREE.MeshToonMaterial({
+    color: p.map && (p.color === undefined || p.color === 0xFFFFFF) ? 0xEAD6BA : (p.color !== undefined ? artColor(p.color) : 0xffffff),
+    map: p.map || null,
+    gradientMap: toonGradient,
+    transparent: !!p.transparent,
+    opacity: p.opacity !== undefined ? p.opacity : 1,
+    emissive: p.emissive !== undefined ? artColor(p.emissive) : 0x000000,
+    emissiveIntensity: p.emissiveIntensity || 0,
+    side: p.side !== undefined ? p.side : THREE.FrontSide
+  });
+  return m;
+}
+const outlineMat = new THREE.MeshBasicMaterial({ color: ART.outline, side: THREE.BackSide });
+// Inverted-hull outline: a slightly larger back-face copy drawn in ink colour.
+function addOutline(mesh, size) {
+  if (!mesh.geometry) return mesh;
+  if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+  const bb = mesh.geometry.boundingBox;
+  const w = ART.outlineWidth * (size || 1);
+  const sx = bb.max.x - bb.min.x, sy = bb.max.y - bb.min.y, sz = bb.max.z - bb.min.z;
+  const o = new THREE.Mesh(mesh.geometry, outlineMat);
+  o.scale.set(1 + (2 * w) / Math.max(sx, 0.01), 1 + (2 * w) / Math.max(sy, 0.01), 1 + (2 * w) / Math.max(sz, 0.01));
+  o.castShadow = false;
+  o.receiveShadow = false;
+  o.userData.isOutline = true;
+  mesh.add(o);
+  return mesh;
+}
 
 // Orthographic Isometric Camera
 let viewSize = 15.5;
@@ -26,10 +81,10 @@ const camDist = 42;
 const camera = new THREE.OrthographicCamera(-10, 10, 10, -10, 0.1, 140);
 
 // Warm Architectural Studio Lighting (matches reference image warmth & soft shadows)
-const hemiLight = new THREE.HemisphereLight(0xFFFBF2, 0xD2C3B2, 0.78);
+const hemiLight = new THREE.HemisphereLight(0xFFF4E0, 0xC9A98A, 0.62);
 scene.add(hemiLight);
 
-const sunLight = new THREE.DirectionalLight(0xFFF3DE, 0.92);
+const sunLight = new THREE.DirectionalLight(0xFFF3DE, 0.62);
 sunLight.position.set(16, 28, 12);
 sunLight.castShadow = true;
 sunLight.shadow.mapSize.width = 2048;
@@ -78,17 +133,17 @@ sharedSteamGeo.userData = { shared: true };
 
 const LIGHTING_PRESETS = {
   morning: {
-    sunCol: new THREE.Color(0xFFF3DE), sunInt: 0.92, sunPos: new THREE.Vector3(16, 28, 12),
-    hemiSky: new THREE.Color(0xFFFBF2), hemiGnd: new THREE.Color(0xD2C3B2), hemiInt: 0.78,
+    sunCol: new THREE.Color(0xFFF3DE), sunInt: 0.62, sunPos: new THREE.Vector3(16, 28, 12),
+    hemiSky: new THREE.Color(0xFFFBF2), hemiGnd: new THREE.Color(0xD2C3B2), hemiInt: 0.5,
     fillCol: new THREE.Color(0xDCEBFF), fillInt: 0.28, roomLight: 0
   },
   lunch_rush: {
-    sunCol: new THREE.Color(0xFFF8E6), sunInt: 1.06, sunPos: new THREE.Vector3(10, 32, 8),
-    hemiSky: new THREE.Color(0xFFFDF7), hemiGnd: new THREE.Color(0xDACBB8), hemiInt: 0.85,
+    sunCol: new THREE.Color(0xFFF8E6), sunInt: 0.7, sunPos: new THREE.Vector3(10, 32, 8),
+    hemiSky: new THREE.Color(0xFFFDF7), hemiGnd: new THREE.Color(0xDACBB8), hemiInt: 0.54,
     fillCol: new THREE.Color(0xE3F0FF), fillInt: 0.32, roomLight: 0
   },
   sunset: {
-    sunCol: new THREE.Color(0xFF9F5A), sunInt: 0.88, sunPos: new THREE.Vector3(-14, 18, 16),
+    sunCol: new THREE.Color(0xFF9F5A), sunInt: 0.62, sunPos: new THREE.Vector3(-14, 18, 16),
     hemiSky: new THREE.Color(0xFFD4AD), hemiGnd: new THREE.Color(0x9E7B64), hemiInt: 0.64,
     fillCol: new THREE.Color(0x9BB5E8), fillInt: 0.30, roomLight: 0.65
   },
@@ -275,8 +330,8 @@ function buildGroundGrid() {
         line.position.set(pos.x, 0.0, pos.z);
         groundGroup.add(line);
       } else {
-        const mat = new THREE.MeshStandardMaterial({
-          color: 0xF5F0E8,
+        const mat = toonMat({
+          color: 0xE6D7BE,
           roughness: 0.92,
           metalness: 0.0
         });
@@ -315,7 +370,7 @@ function buildStreetScooter(bodyColor) {
   addCyl(sc, 0.13, 0.15, 0.34, -0.04, 0.56, 0, 0x455A64);
   const helmet = new THREE.Mesh(
     new THREE.SphereGeometry(0.14, 12, 10),
-    new THREE.MeshStandardMaterial({ color: 0xF2C94C, roughness: 0.4 })
+    toonMat({ color: 0xF2C94C, roughness: 0.4 })
   );
   helmet.position.set(-0.02, 0.84, 0);
   sc.add(helmet);
@@ -391,7 +446,7 @@ function buildStreetScene() {
   lampOffsets.forEach((lx, idx) => {
     addCyl(streetGroup, 0.05, 0.08, 2.35, lx, 1.25, sidewalkZ + 0.72, 0x2C3238, { metalness: 0.5 });
     addBox(streetGroup, 0.36, 0.05, 0.05, lx, 2.40, sidewalkZ + 0.72, 0x2C3238);
-    const bulbMat = new THREE.MeshStandardMaterial({
+    const bulbMat = toonMat({
       color: 0xFFF6D6,
       emissive: 0xFFA940,
       emissiveIntensity: 0.25,
@@ -422,7 +477,7 @@ function buildStreetScene() {
 
 // Reusable 3D Builder Helpers
 function addBox(parent, w, h, d, x, y, z, color, opts = {}) {
-  const mat = new THREE.MeshStandardMaterial({
+  const mat = toonMat({
     color,
     roughness: opts.roughness !== undefined ? opts.roughness : 0.72,
     metalness: opts.metalness !== undefined ? opts.metalness : 0.04,
@@ -437,12 +492,13 @@ function addBox(parent, w, h, d, x, y, z, color, opts = {}) {
   mesh.castShadow = opts.castShadow !== false;
   mesh.receiveShadow = opts.receiveShadow !== false;
   if (opts.rotY) mesh.rotation.y = opts.rotY;
+  if (opts.outline !== false && !opts.transparent && Math.min(w, h, d) > 0.015) addOutline(mesh);
   parent.add(mesh);
   return mesh;
 }
 
 function addCyl(parent, rt, rb, h, x, y, z, color, opts = {}) {
-  const mat = new THREE.MeshStandardMaterial({
+  const mat = toonMat({
     color,
     roughness: opts.roughness !== undefined ? opts.roughness : 0.65,
     metalness: opts.metalness !== undefined ? opts.metalness : 0.05
@@ -451,6 +507,7 @@ function addCyl(parent, rt, rb, h, x, y, z, color, opts = {}) {
   mesh.position.set(x, y, z);
   mesh.castShadow = opts.castShadow !== false;
   mesh.receiveShadow = opts.receiveShadow !== false;
+  if (opts.outline !== false && h > 0.015) addOutline(mesh);
   parent.add(mesh);
   return mesh;
 }
@@ -461,8 +518,8 @@ function addPlant(parent, x, z, scale = 1) {
   g.scale.setScalar(scale);
   addCyl(g, 0.20, 0.14, 0.34, 0, 0.17, 0, 0xC28258, { roughness: 0.78 });
   addCyl(g, 0.17, 0.17, 0.04, 0, 0.34, 0, 0x5A4232);
-  const leafMat = new THREE.MeshStandardMaterial({ color: 0x4A8B57, roughness: 0.65 });
-  const leafMat2 = new THREE.MeshStandardMaterial({ color: 0x62A86E, roughness: 0.65 });
+  const leafMat = toonMat({ color: 0x4A8B57, roughness: 0.65 });
+  const leafMat2 = toonMat({ color: 0x62A86E, roughness: 0.65 });
   [[0,0.62,0,0.24],[0.14,0.54,0.08,0.17],[-0.13,0.56,-0.07,0.18],[0.04,0.74,-0.06,0.16]].forEach(([lx,ly,lz,r], idx) => {
     const s = new THREE.Mesh(new THREE.DodecahedronGeometry(r, 1), idx % 2 === 0 ? leafMat : leafMat2);
     s.position.set(lx, ly, lz);
@@ -489,52 +546,70 @@ function createMiniCharacter(role, outfitColor, isGuest = false) {
   const hairColors = [0x362820, 0x523726, 0x26211F, 0x6E4C34];
   const hairCol = hairColors[Math.floor(Math.random() * hairColors.length)];
 
-  // Legs
-  const legL = addBox(g, 0.11, 0.30, 0.11, -0.075, 0.15, 0, 0x3D3A38);
-  const legR = addBox(g, 0.11, 0.30, 0.11, 0.075, 0.15, 0, 0x3D3A38);
+  // Chibi proportions: short body, big round head with a face.
+  const legL = addBox(g, 0.11, 0.26, 0.12, -0.075, 0.13, 0, 0x3D3A38);
+  const legR = addBox(g, 0.11, 0.26, 0.12, 0.075, 0.13, 0, 0x3D3A38);
+  addCyl(g, 0.15, 0.2, 0.34, 0, 0.42, 0, outfitColor);
+  if (!isGuest && (role === 'kitchen' || role === 'dining')) {
+    addBox(g, 0.22, 0.24, 0.02, 0, 0.4, 0.17, 0xFFF8EC); // apron
+  }
+  [-1, 1].forEach((side) => {
+    addCyl(g, 0.045, 0.05, 0.24, side * 0.2, 0.46, 0.02, outfitColor);
+    const hand = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8), toonMat({ color: 0xF6CFAE }));
+    hand.position.set(side * 0.21, 0.33, 0.03);
+    g.add(addOutline(hand));
+  });
 
-  // Torso
-  addCyl(g, 0.16, 0.19, 0.40, 0, 0.48, 0, outfitColor, { roughness: 0.75 });
-
-  // Head
-  const head = new THREE.Mesh(
-    new THREE.SphereGeometry(0.165, 16, 14),
-    new THREE.MeshStandardMaterial({ color: 0xF3C7A4, roughness: 0.65 })
-  );
-  head.position.set(0, 0.84, 0);
+  const headY = 0.82;
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.25, 20, 16), toonMat({ color: 0xF6CFAE }));
+  head.scale.set(1, 0.94, 0.96);
+  head.position.set(0, headY, 0);
   head.castShadow = true;
-  g.add(head);
+  g.add(addOutline(head, 1.2));
+  const eyeMat = new THREE.MeshBasicMaterial({ color: 0x2A1E18 });
+  const blushMat = new THREE.MeshBasicMaterial({ color: 0xF29A8B, transparent: true, opacity: 0.75 });
+  [-1, 1].forEach((side) => {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.035, 10, 8), eyeMat);
+    eye.scale.set(0.8, 1.15, 0.5);
+    eye.position.set(side * 0.085, headY - 0.01, 0.225);
+    g.add(eye);
+    const blush = new THREE.Mesh(new THREE.CircleGeometry(0.035, 12), blushMat);
+    blush.position.set(side * 0.15, headY - 0.07, 0.2);
+    blush.rotation.y = side * 0.55;
+    g.add(blush);
+  });
 
-  // Role headwear / hair
+  const hatOrHair = (geo, color, y, scale) => {
+    const m = new THREE.Mesh(geo, toonMat({ color }));
+    m.position.set(0, y, 0);
+    if (scale) m.scale.set(scale[0], scale[1], scale[2]);
+    m.castShadow = true;
+    g.add(addOutline(m, 1.2));
+    return m;
+  };
   if (role === 'kitchen' && !isGuest) {
-    addCyl(g, 0.14, 0.13, 0.16, 0, 1.03, 0, 0xFFFFFF, { roughness: 0.5 });
-    const puff = new THREE.Mesh(
-      new THREE.SphereGeometry(0.16, 12, 10),
-      new THREE.MeshStandardMaterial({ color: 0xFFFFFF, roughness: 0.5 })
-    );
-    puff.position.set(0, 1.12, 0);
-    g.add(puff);
+    hatOrHair(new THREE.SphereGeometry(0.262, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.5), hairCol, headY + 0.01, [1, 0.9, 1]);
+    hatOrHair(new THREE.CylinderGeometry(0.17, 0.16, 0.16, 16), 0xFFFFFF, headY + 0.27);
+    hatOrHair(new THREE.SphereGeometry(0.2, 14, 10), 0xFFFFFF, headY + 0.38, [1, 0.7, 1]);
   } else if ((role === 'dispatch' || role === 'drone_hub') && !isGuest) {
-    const helmet = new THREE.Mesh(
-      new THREE.SphereGeometry(0.18, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.58),
-      new THREE.MeshStandardMaterial({ color: role === 'drone_hub' ? 0x2B6E8C : 0xD15540, roughness: 0.35 })
-    );
-    helmet.position.set(0, 0.87, 0);
-    g.add(helmet);
+    hatOrHair(new THREE.SphereGeometry(0.27, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.55), role === 'drone_hub' ? 0x2B6E8C : 0xD15540, headY + 0.02);
   } else if (role === 'cold_storage' && !isGuest) {
-    const beanie = new THREE.Mesh(
-      new THREE.SphereGeometry(0.18, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.6),
-      new THREE.MeshStandardMaterial({ color: 0xDCEBF5, roughness: 0.65 })
-    );
-    beanie.position.set(0, 0.87, 0);
-    g.add(beanie);
+    hatOrHair(new THREE.SphereGeometry(0.265, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.55), 0x7DB8D8, headY + 0.02);
+  } else if (role === 'dining' && !isGuest) {
+    // Waiter: hair plus a little red headband
+    hatOrHair(new THREE.SphereGeometry(0.265, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.55), hairCol, headY + 0.02);
+    hatOrHair(new THREE.CylinderGeometry(0.262, 0.262, 0.05, 18), 0xD8402F, headY + 0.1);
   } else {
-    const hair = new THREE.Mesh(
-      new THREE.SphereGeometry(0.175, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.56),
-      new THREE.MeshStandardMaterial({ color: hairCol, roughness: 0.8 })
-    );
-    hair.position.set(0, 0.87, 0);
-    g.add(hair);
+    hatOrHair(new THREE.SphereGeometry(0.265, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.55), hairCol, headY + 0.02);
+    // fringe on the forehead
+    const fringe = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.35), toonMat({ color: hairCol }));
+    fringe.position.set(0, headY + 0.06, 0.07);
+    fringe.rotation.x = 0.5;
+    g.add(fringe);
+    if (isGuest && Math.random() < 0.4) {
+      // ponytail / bun
+      hatOrHair(new THREE.SphereGeometry(0.1, 10, 8), hairCol, headY + 0.14).position.z = -0.24;
+    }
   }
 
   // Carried prop
@@ -583,8 +658,8 @@ function updateCameraTransform() {
 function resetCamera() {
   const w = canvas.parentElement.clientWidth;
   const scale = getGridSize() / 4;
-  viewSize = (w < 640 ? 24 : (w < 1024 ? 19.2 : 16.5)) * scale;
-  camTarget.set(0, 0.35, 1.1 * scale);
+  viewSize = (w < 640 ? 17 : (w < 1024 ? 14 : 11.5)) * scale;
+  camTarget.set(0.4, 0.35, 2.3 * scale);
   camYawIndex = 0;
   camYawGoal = Math.PI / 4;
   updateCameraProjection();

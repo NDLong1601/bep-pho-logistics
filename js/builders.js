@@ -181,7 +181,7 @@ function buildRoomShell(room, cfg) {
   group.add(interior);
 
   // Warm interior pendant lantern & PointLight for sunset/night cycle
-  const lanternMat = new THREE.MeshStandardMaterial({
+  const lanternMat = toonMat({
     color: 0xFFF3D6,
     emissive: 0xFF9F43,
     emissiveIntensity: 0.15,
@@ -718,7 +718,7 @@ const ROOM_BUILDERS = {
       addCyl(g, 0.24, 0.28, 0.62, 1.38, 0.31, -1.22, 0xEFE6D8);
       trophy = new THREE.Mesh(
         new THREE.OctahedronGeometry(0.20, 0),
-        new THREE.MeshStandardMaterial({ color: 0xF2C04B, emissive: 0xD98A2B, emissiveIntensity: 0.4, metalness: 0.7, roughness: 0.25 })
+        toonMat({ color: 0xF2C04B, emissive: 0xD98A2B, emissiveIntensity: 0.4, metalness: 0.7, roughness: 0.25 })
       );
       trophy.position.set(1.38, 0.88, -1.22);
       trophy.castShadow = true;
@@ -1054,15 +1054,15 @@ function updatePlotHighlights() {
 
     if (relocateSource) {
       if (isRelocSrc) {
-        tile.material.color.setHex(0xF5D9C4);
+        tile.material.color.setHex(0xF4C38E);
         border.material.color.setHex(0xC86234);
         border.material.opacity = 1;
       } else if (isHov) {
-        tile.material.color.setHex(0xCFECE0);
+        tile.material.color.setHex(0x6FB04F);
         border.material.color.setHex(0x2F7D63);
         border.material.opacity = 1;
       } else {
-        tile.material.color.setHex(0xE8F5EF);
+        tile.material.color.setHex(0x9ACF78);
         border.material.color.setHex(0x2F7D63);
         border.material.opacity = 0.72;
       }
@@ -1070,16 +1070,16 @@ function updatePlotHighlights() {
     }
 
     if (isSel) {
-      tile.material.color.setHex(0xF5D9C4);
+      tile.material.color.setHex(0xF4C38E);
       border.material.color.setHex(0xC86234);
       border.material.opacity = 1;
     } else if (isHov) {
-      tile.material.color.setHex(occupied ? 0xF7ECE0 : 0xFFFDF8);
+      tile.material.color.setHex(occupied ? 0xD9B98A : 0x9ACF78);
       border.material.color.setHex(0xC86234);
       border.material.opacity = 0.72;
     } else {
-      tile.material.color.setHex(0xF3EDE5);
-      border.material.color.setHex(0xFFFFFF);
+      tile.material.color.setHex(occupied ? 0xC9A877 : 0x84BD62);
+      border.material.color.setHex(0xFFF6E0);
       border.material.opacity = occupied ? 0.25 : 0.85;
     }
   });

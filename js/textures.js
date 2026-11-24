@@ -121,6 +121,27 @@ function makeWallArtTexture(kind) {
       g.fillRect(36, 64 + i * 16, 128, 6);
       g.fillRect(190, 64 + i * 16, 32, 6);
     }
+  } else if (kind === 'phoco') {
+    // Old-quarter street painting: tube houses with tiled roofs at dusk
+    const sky = g.createLinearGradient(0, 0, 0, 144);
+    sky.addColorStop(0, '#F2C17D');
+    sky.addColorStop(1, '#E9875A');
+    g.fillStyle = sky;
+    g.fillRect(0, 0, 256, 144);
+    const houses = [[8, 54, '#E8D3A6'], [52, 40, '#D9B98A'], [96, 62, '#F0DDB5'], [140, 46, '#D6A979'], [184, 58, '#E6C99B'], [222, 44, '#DDBF92']];
+    houses.forEach(([x, top, col]) => {
+      g.fillStyle = col;
+      g.fillRect(x, top, 40, 144 - top);
+      g.fillStyle = '#9C4A2C';
+      g.beginPath(); g.moveTo(x - 4, top); g.lineTo(x + 20, top - 16); g.lineTo(x + 44, top); g.closePath(); g.fill();
+      g.fillStyle = '#5A7F5E';
+      g.fillRect(x + 8, top + 16, 9, 14);
+      g.fillRect(x + 23, top + 16, 9, 14);
+      g.fillStyle = '#7A4B2E';
+      g.fillRect(x + 14, 116, 12, 28);
+    });
+    g.fillStyle = '#4A3A30';
+    g.fillRect(0, 138, 256, 6);
   }
   const tex = new THREE.CanvasTexture(c);
   TextureCache['art_' + kind] = tex;

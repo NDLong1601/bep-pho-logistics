@@ -262,6 +262,7 @@ const modal = document.getElementById('system-modal');
 const tabs = [
   { btn: 'tab-save', panel: 'panel-save' },
   { btn: 'tab-dishes', panel: 'panel-dishes' },
+  { btn: 'tab-decor', panel: 'panel-decor' },
   { btn: 'tab-expansion', panel: 'panel-expansion' },
   { btn: 'tab-extend', panel: 'panel-extend' },
   { btn: 'tab-deploy', panel: 'panel-deploy' }
@@ -277,6 +278,7 @@ function selectModalTab(tabBtnId) {
   });
   if (tabBtnId === 'tab-expansion') renderExpansionPanel();
   if (tabBtnId === 'tab-dishes') renderDishesPanel();
+  if (tabBtnId === 'tab-decor') renderDecorPanel();
 }
 
 function openSystemModal(tabBtnId = 'tab-save') {
@@ -288,6 +290,7 @@ function openSystemModal(tabBtnId = 'tab-save') {
 }
 
 document.getElementById('btn-system').addEventListener('click', () => openSystemModal('tab-save'));
+document.getElementById('pill-rank').addEventListener('click', () => openSystemModal('tab-decor'));
 document.getElementById('btn-dishes').addEventListener('click', () => openSystemModal('tab-dishes'));
 document.getElementById('btn-menu-select').addEventListener('click', () => openSystemModal('tab-expansion'));
 document.getElementById('btn-expand-grid').addEventListener('click', () => openSystemModal('tab-expansion'));

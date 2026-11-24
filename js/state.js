@@ -14,6 +14,8 @@ function createInitialState() {
     unlockedDishes: ['pho_tai', 'tra_da'],
     dishStars: {},
     dishSales: {},
+    decor: [],
+    rankIndex: 0,
     rep: 10,
     playerLevel: 1,
     exp: 0,
@@ -89,6 +91,13 @@ const SAVE_MIGRATIONS = [
     s.dishStars = {};
     s.dishSales = {};
     return s;
+  },
+  // v5 -> v6: decor and restaurant rank. No decor yet; the current rank is
+  // adopted silently on load (rankIndex is set by the first rank check).
+  (s) => {
+    s.decor = [];
+    s.rankIndex = -1;
+    return s;
   }
 ];
 
@@ -129,6 +138,8 @@ function normalizeLoadedState(parsed) {
   if (!Array.isArray(s.unlockedDishes) || !s.unlockedDishes.length) s.unlockedDishes = ['pho_tai', 'tra_da'];
   if (!s.dishStars || typeof s.dishStars !== 'object') s.dishStars = {};
   if (!s.dishSales || typeof s.dishSales !== 'object') s.dishSales = {};
+  if (!Array.isArray(s.decor)) s.decor = [];
+  if (typeof s.rankIndex !== 'number') s.rankIndex = 0;
   s.autoNextDay = !!s.autoNextDay;
   return s;
 }
@@ -163,7 +174,7 @@ function loadGame() {
       if (typeof parsed.lastSavedAt === 'number') {
         const elapsedSec = Math.floor((Date.now() - parsed.lastSavedAt) / 1000);
         if (elapsedSec >= 30 && state.rooms.length > 0) {
-          const cappedSec = Math.min(elapsedSec, 4 * 3600);
+          const cappedSec = Math.min(elapsedSec, getOfflineHours() * 3600);
           const rates = getNetResourceRates();
           const maxOfflineCap = Math.max(1500, state.rooms.length * 800);
           const earned = Math.min(maxOfflineCap, Math.round(Math.max(0, rates.coins) * 0.05 * cappedSec));
@@ -693,7 +704,7 @@ function getRoomEffectiveMultipliers(room, bonuses = getGlobalBonuses()) {
   const menu = getActiveMenuConfig();
 
   let menuSpeed = 1;
-  if (room.type === 'kitchen') menuSpeed = menu.kitchenSpeed || 1;
+  if (room.type === 'kitchen') menuSpeed = (menu.kitchenSpeed || 1) * (1 + getDecorBonus('kitchenSpeed'));
   else if (room.type === 'packing') menuSpeed = menu.packingSpeed || 1;
 
   let perkSpeed = 1;

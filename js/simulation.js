@@ -237,6 +237,7 @@ function updateSimulation(dt, timeSec) {
   }
 
   updateCrew(effDt);
+  updateRankCheck(dt);
   updateKitchenSupport(effDt);
   updateCustomers(effDt, phase);
 

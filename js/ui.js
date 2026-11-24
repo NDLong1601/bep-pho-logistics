@@ -75,6 +75,7 @@ function updateHUD() {
 
   updateTicketMetaBadges();
   if (typeof updateTicketRailProgress === 'function') updateTicketRailProgress();
+  if (typeof updateRankPill === 'function') updateRankPill();
 
   const perksBox = document.getElementById('active-perks-box');
   const perksList = document.getElementById('active-perks-list');

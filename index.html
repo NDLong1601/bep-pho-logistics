@@ -66,6 +66,9 @@
             <span class="text-[10.5px] text-stone-400 font-medium hidden md:inline">Đơn</span>
             <span id="rate-parcels" class="text-[10px] font-semibold tabular-nums text-stone-400"></span>
           </div>
+          <button id="pill-rank" type="button" class="stat-chip rounded-xl px-2.5 py-1.5 flex items-center gap-1.5 text-xs font-bold text-stone-800" title="Hạng quán: trang trí, phục vụ, món ăn">
+            <span id="stat-rank">🧺 Gánh hàng rong</span>
+          </button>
           <div id="pill-rep" class="stat-chip rounded-xl px-2.5 py-1.5 hidden lg:flex items-center gap-1.5" title="Uy tín thương hiệu">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="#D98A2B" stroke="#D98A2B" stroke-width="1.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
             <span id="stat-rep" class="tabular-nums text-amber-700">10</span>
@@ -190,6 +193,7 @@
         <div class="px-5 pt-2.5 flex flex-wrap gap-2 border-b border-stone-900/10">
           <button id="tab-save" class="px-3 py-2 text-xs font-bold border-b-2 border-amber-700 text-amber-800">Lưu & Dữ liệu</button>
           <button id="tab-dishes" class="px-3 py-2 text-xs font-bold border-b-2 border-transparent text-stone-500 hover:text-stone-800">Món ăn</button>
+          <button id="tab-decor" class="px-3 py-2 text-xs font-bold border-b-2 border-transparent text-stone-500 hover:text-stone-800">Trang trí & Hạng quán</button>
           <button id="tab-expansion" class="px-3 py-2 text-xs font-bold border-b-2 border-transparent text-stone-500 hover:text-stone-800">Cấp độ, Thực đơn & Mở đất</button>
           <button id="tab-extend" class="px-3 py-2 text-xs font-bold border-b-2 border-transparent text-stone-500 hover:text-stone-800">Kiến trúc Mở rộng</button>
           <button id="tab-deploy" class="px-3 py-2 text-xs font-bold border-b-2 border-transparent text-stone-500 hover:text-stone-800">Deploy GitHub Pages</button>
@@ -236,6 +240,11 @@
             <p class="text-xs text-stone-600 leading-relaxed">Khách gọi một món chính, đôi khi kèm món phụ hoặc đồ uống. Nâng sao để món đắt hơn và được gọi nhiều hơn. Phục vụ đủ khách, khách quen sẽ kể công thức món mới.</p>
             <div id="dishes-next-recipe" class="bg-amber-50/70 border border-amber-200/70 rounded-2xl p-3"></div>
             <div id="dishes-list" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5"></div>
+          </div>
+
+          <div id="panel-decor" class="hidden space-y-4">
+            <div id="decor-rank-card" class="bg-amber-50/70 border border-amber-200/70 rounded-2xl p-3.5 space-y-3"></div>
+            <div id="decor-list" class="space-y-3"></div>
           </div>
 
           <div id="panel-expansion" class="hidden space-y-4">
@@ -333,6 +342,7 @@
   <script src="js/customers.js"></script>
   <script src="js/staff.js"></script>
   <script src="js/dishes.js"></script>
+  <script src="js/decor.js"></script>
   <script src="js/simulation.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/main.js"></script>

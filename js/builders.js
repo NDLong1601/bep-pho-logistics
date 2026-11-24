@@ -199,6 +199,7 @@ function buildRoomShell(room, cfg) {
   const animHooks = [];
   const builder = ROOM_BUILDERS[room.type];
   if (builder) builder(interior, room, animHooks);
+  buildDecor3D(room, group, interior, animHooks, isStreetFront);
 
   const wallPropsNX = [];
   const wallPropsNZ = [];

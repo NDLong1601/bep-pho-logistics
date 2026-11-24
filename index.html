@@ -80,6 +80,9 @@
         </button>
         <button id="btn-speed" class="btn-ghost rounded-xl px-2.5 py-1.5 text-xs font-bold tabular-nums" title="Đổi tốc độ (1 / 2)">1x</button>
         <button id="btn-sound" class="btn-ghost rounded-xl w-8 h-8 flex items-center justify-center text-xs" title="Bật/Tắt âm thanh">🔊</button>
+        <button id="btn-dishes" class="btn-ghost rounded-xl px-2.5 py-1.5 text-xs font-semibold flex items-center gap-1" title="Món ăn: giá, nâng sao, công thức mới">
+          <span>📖</span><span class="hidden md:inline">Món ăn</span>
+        </button>
         <button id="btn-menu-select" class="btn-ghost rounded-xl px-2.5 py-1.5 text-xs font-semibold flex items-center gap-1" title="Chọn Thực đơn Đặc sản">
           <span id="menu-icon">🍜</span><span class="hidden md:inline" id="menu-label">Thực đơn</span>
         </button>
@@ -186,6 +189,7 @@
 
         <div class="px-5 pt-2.5 flex flex-wrap gap-2 border-b border-stone-900/10">
           <button id="tab-save" class="px-3 py-2 text-xs font-bold border-b-2 border-amber-700 text-amber-800">Lưu & Dữ liệu</button>
+          <button id="tab-dishes" class="px-3 py-2 text-xs font-bold border-b-2 border-transparent text-stone-500 hover:text-stone-800">Món ăn</button>
           <button id="tab-expansion" class="px-3 py-2 text-xs font-bold border-b-2 border-transparent text-stone-500 hover:text-stone-800">Cấp độ, Thực đơn & Mở đất</button>
           <button id="tab-extend" class="px-3 py-2 text-xs font-bold border-b-2 border-transparent text-stone-500 hover:text-stone-800">Kiến trúc Mở rộng</button>
           <button id="tab-deploy" class="px-3 py-2 text-xs font-bold border-b-2 border-transparent text-stone-500 hover:text-stone-800">Deploy GitHub Pages</button>
@@ -226,6 +230,12 @@
                 Chơi lại từ đầu
               </button>
             </div>
+          </div>
+
+          <div id="panel-dishes" class="hidden space-y-3">
+            <p class="text-xs text-stone-600 leading-relaxed">Khách gọi một món chính, đôi khi kèm món phụ hoặc đồ uống. Nâng sao để món đắt hơn và được gọi nhiều hơn. Phục vụ đủ khách, khách quen sẽ kể công thức món mới.</p>
+            <div id="dishes-next-recipe" class="bg-amber-50/70 border border-amber-200/70 rounded-2xl p-3"></div>
+            <div id="dishes-list" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5"></div>
           </div>
 
           <div id="panel-expansion" class="hidden space-y-4">
@@ -322,6 +332,7 @@
   <script src="js/builders.js"></script>
   <script src="js/customers.js"></script>
   <script src="js/staff.js"></script>
+  <script src="js/dishes.js"></script>
   <script src="js/simulation.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/main.js"></script>

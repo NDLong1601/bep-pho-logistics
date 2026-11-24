@@ -4,12 +4,40 @@
 function buildRoomShell(room, cfg) {
   const group = new THREE.Group();
   const s = GAME_CONFIG.TILE_SIZE - 0.06;
+  const step = GAME_CONFIG.TILE_SIZE + GAME_CONFIG.TILE_GAP;
   const wh = GAME_CONFIG.WALL_HEIGHT;
   const floorH = 0.26;
   const wallT = 0.14;
+  const hs = s / 2;
+  const gridSize = getGridSize();
 
-  // Wooden architectural base plinth (like reference image)
+  const nbNX = getRoomAt(room.gx - 1, room.gy);
+  const nbPX = getRoomAt(room.gx + 1, room.gy);
+  const nbNZ = getRoomAt(room.gx, room.gy - 1);
+  const nbPZ = getRoomAt(room.gx, room.gy + 1);
+
+  const mergeNX = !!(nbNX && nbNX.type === room.type);
+  const mergePX = !!(nbPX && nbPX.type === room.type);
+  const mergeNZ = !!(nbNZ && nbNZ.type === room.type);
+  const mergePZ = !!(nbPZ && nbPZ.type === room.type);
+
+  const doorNX = !!(nbNX && nbNX.type !== room.type);
+  const doorPX = !!(nbPX && nbPX.type !== room.type);
+  const doorNZ = !!(nbNZ && nbNZ.type !== room.type);
+  const doorPZ = !!(nbPZ && nbPZ.type !== room.type);
+  const isStreetFront = (room.gy === gridSize - 1) && (room.type === 'dining' || room.type === 'cafe' || room.type === 'marketing' || room.type === 'dispatch');
+
+  // Wooden architectural base plinth
   addBox(group, s, floorH, s, 0, floorH / 2, 0, cfg.trimColor, { roughness: 0.72 });
+
+  // Prestige milestone base trim for high/infinite levels (Lv.5+, Lv.10+, Lv.15+)
+  if (room.level >= 5) {
+    const tierCol = room.level >= 15 ? 0x5CE1E6 : (room.level >= 10 ? 0xE2ECF5 : 0xE6B34C);
+    const tierEm = room.level >= 15 ? 0x2AB7CA : (room.level >= 10 ? 0x8FA8BF : 0xB8860B);
+    addBox(group, s + 0.05, 0.05, s + 0.05, 0, 0.06, 0, tierCol, {
+      metalness: 0.65, roughness: 0.25, emissive: tierEm, emissiveIntensity: room.level >= 15 ? 0.45 : 0.18
+    });
+  }
 
   // Textured floor surface
   const floorTex = makeFloorTexture(cfg.floorStyle, cfg.floorTint);
@@ -17,8 +45,42 @@ function buildRoomShell(room, cfg) {
     map: floorTex, roughness: 0.82, castShadow: false
   });
 
+  // Seamless Floor Bridges when merging adjacent same-type rooms
+  const plinthGap = step - s + 0.06;
+  const floorGap = step - (s - 0.12) + 0.06;
+  if (mergePX) {
+    addBox(group, plinthGap, floorH, s, step / 2, floorH / 2, 0, cfg.trimColor, { roughness: 0.72 });
+    addBox(group, floorGap, 0.05, s - 0.12, step / 2, floorH + 0.012, 0, 0xFFFFFF, { map: floorTex, roughness: 0.82, castShadow: false });
+  }
+  if (mergePZ) {
+    addBox(group, s, floorH, plinthGap, 0, floorH / 2, step / 2, cfg.trimColor, { roughness: 0.72 });
+    addBox(group, s - 0.12, 0.05, floorGap, 0, floorH + 0.012, step / 2, 0xFFFFFF, { map: floorTex, roughness: 0.82, castShadow: false });
+  }
+  if (mergePX && mergePZ) {
+    const nbDiag = getRoomAt(room.gx + 1, room.gy + 1);
+    if (nbDiag && nbDiag.type === room.type) {
+      addBox(group, plinthGap, floorH, plinthGap, step / 2, floorH / 2, step / 2, cfg.trimColor, { roughness: 0.72 });
+      addBox(group, floorGap, 0.05, floorGap, step / 2, floorH + 0.012, step / 2, 0xFFFFFF, { map: floorTex, roughness: 0.82, castShadow: false });
+    }
+  }
+
+  // Doorway Threshold Bridges between different-type rooms & Street Entrance Steps
+  const doorW = 1.08;
+  const doorH = 1.68;
+  if (doorPX) {
+    addBox(group, floorGap, floorH, doorW + 0.18, step / 2, floorH / 2, 0, cfg.trimColor);
+    addBox(group, floorGap + 0.04, 0.055, doorW + 0.06, step / 2, floorH + 0.014, 0, 0xD2A473);
+  }
+  if (doorPZ) {
+    addBox(group, doorW + 0.18, floorH, floorGap, 0, floorH / 2, step / 2, cfg.trimColor);
+    addBox(group, doorW + 0.06, 0.055, floorGap + 0.04, 0, floorH + 0.014, step / 2, 0xD2A473);
+  }
+  if (isStreetFront) {
+    addBox(group, 1.32, 0.16, 0.34, 0, 0.08, hs + 0.16, cfg.trimColor);
+    addBox(group, 1.24, 0.04, 0.30, 0, 0.17, hs + 0.16, 0xC86234);
+  }
+
   // Back-Left Wall (along -X) & Back-Right Wall (along -Z) wrapped for dynamic cutaway
-  const hs = s / 2;
   const wallNX = new THREE.Group();
   wallNX.position.set(0, floorH, 0);
   wallNX.userData = { wallSide: 'NX' };
@@ -29,43 +91,89 @@ function buildRoomShell(room, cfg) {
   wallNZ.userData = { wallSide: 'NZ' };
   group.add(wallNZ);
 
-  addBox(wallNX, wallT, wh, s, -hs + wallT / 2, wh / 2, 0, cfg.wallColor, { roughness: 0.88 });
-  addBox(wallNZ, s, wh, wallT, 0, wh / 2, -hs + wallT / 2, cfg.wallColor, { roughness: 0.88 });
-
-  // Wooden top cap trim on back walls
-  addBox(wallNX, wallT + 0.05, 0.09, s + 0.04, -hs + wallT / 2, wh + 0.04, 0, cfg.trimColor, { roughness: 0.6 });
-  addBox(wallNZ, s + 0.04, 0.09, wallT + 0.05, 0, wh + 0.04, -hs + wallT / 2, cfg.trimColor, { roughness: 0.6 });
-
   let windowNX = null;
 
-  // Modern Glass Window with wooden mullions on Back-Left wall
+  if (!mergeNX) {
+    if (doorNX) {
+      const seg = (s - doorW) / 2;
+      addBox(wallNX, wallT, wh, seg, -hs + wallT / 2, wh / 2, -(hs - seg / 2), cfg.wallColor, { roughness: 0.88 });
+      addBox(wallNX, wallT, wh, seg, -hs + wallT / 2, wh / 2, (hs - seg / 2), cfg.wallColor, { roughness: 0.88 });
+      addBox(wallNX, wallT, wh - doorH, doorW, -hs + wallT / 2, doorH + (wh - doorH) / 2, 0, cfg.wallColor, { roughness: 0.88 });
+      // Wooden doorway jambs & lintel
+      addBox(wallNX, wallT + 0.06, doorH, 0.08, -hs + wallT / 2, doorH / 2, -doorW / 2, cfg.trimColor);
+      addBox(wallNX, wallT + 0.06, doorH, 0.08, -hs + wallT / 2, doorH / 2, doorW / 2, cfg.trimColor);
+      addBox(wallNX, wallT + 0.07, 0.09, doorW + 0.16, -hs + wallT / 2, doorH + 0.02, 0, cfg.trimColor);
+    } else {
+      addBox(wallNX, wallT, wh, s, -hs + wallT / 2, wh / 2, 0, cfg.wallColor, { roughness: 0.88 });
+      if (cfg.glassFront) {
+        const winH = wh - 0.55;
+        windowNX = new THREE.Group();
+        wallNX.add(windowNX);
+        addBox(windowNX, 0.05, winH, 2.2, -hs + wallT + 0.01, 0.35 + winH / 2, 0.15, 0xB8DDF0, {
+          transparent: true, opacity: 0.42, roughness: 0.12, metalness: 0.15, castShadow: false
+        });
+        addBox(windowNX, 0.08, winH + 0.08, 0.07, -hs + wallT + 0.02, 0.35 + winH / 2, -0.95, cfg.trimColor);
+        addBox(windowNX, 0.08, winH + 0.08, 0.07, -hs + wallT + 0.02, 0.35 + winH / 2, 0.15, cfg.trimColor);
+        addBox(windowNX, 0.08, winH + 0.08, 0.07, -hs + wallT + 0.02, 0.35 + winH / 2, 1.25, cfg.trimColor);
+        addBox(windowNX, 0.08, 0.07, 2.26, -hs + wallT + 0.02, 0.35, 0.15, cfg.trimColor);
+        addBox(windowNX, 0.08, 0.07, 2.26, -hs + wallT + 0.02, 0.35 + winH, 0.15, cfg.trimColor);
+      }
+    }
+    addBox(wallNX, wallT + 0.05, 0.09, s + 0.04, -hs + wallT / 2, wh + 0.04, 0, cfg.trimColor, { roughness: 0.6 });
+  }
+
+  if (!mergeNZ) {
+    if (doorNZ) {
+      const seg = (s - doorW) / 2;
+      addBox(wallNZ, seg, wh, wallT, -(hs - seg / 2), wh / 2, -hs + wallT / 2, cfg.wallColor, { roughness: 0.88 });
+      addBox(wallNZ, seg, wh, wallT, (hs - seg / 2), wh / 2, -hs + wallT / 2, cfg.wallColor, { roughness: 0.88 });
+      addBox(wallNZ, doorW, wh - doorH, wallT, 0, doorH + (wh - doorH) / 2, -hs + wallT / 2, cfg.wallColor, { roughness: 0.88 });
+      // Wooden doorway jambs & lintel
+      addBox(wallNZ, 0.08, doorH, wallT + 0.06, -doorW / 2, doorH / 2, -hs + wallT / 2, cfg.trimColor);
+      addBox(wallNZ, 0.08, doorH, wallT + 0.06, doorW / 2, doorH / 2, -hs + wallT / 2, cfg.trimColor);
+      addBox(wallNZ, doorW + 0.16, 0.09, wallT + 0.07, 0, doorH + 0.02, -hs + wallT / 2, cfg.trimColor);
+    } else {
+      addBox(wallNZ, s, wh, wallT, 0, wh / 2, -hs + wallT / 2, cfg.wallColor, { roughness: 0.88 });
+    }
+    addBox(wallNZ, s + 0.04, 0.09, wallT + 0.05, 0, wh + 0.04, -hs + wallT / 2, cfg.trimColor, { roughness: 0.6 });
+  }
+
+  // Low front architectural glass partitions (+Z and +X), removed on merged sides & split at doorways
   if (cfg.glassFront) {
-    const winH = wh - 0.55;
-    windowNX = new THREE.Group();
-    wallNX.add(windowNX);
-
-    addBox(windowNX, 0.05, winH, 2.2, -hs + wallT + 0.01, 0.35 + winH / 2, 0.15, 0xB8DDF0, {
-      transparent: true, opacity: 0.42, roughness: 0.12, metalness: 0.15, castShadow: false
-    });
-    // Mullion frames
-    addBox(windowNX, 0.08, winH + 0.08, 0.07, -hs + wallT + 0.02, 0.35 + winH / 2, -0.95, cfg.trimColor);
-    addBox(windowNX, 0.08, winH + 0.08, 0.07, -hs + wallT + 0.02, 0.35 + winH / 2, 0.15, cfg.trimColor);
-    addBox(windowNX, 0.08, winH + 0.08, 0.07, -hs + wallT + 0.02, 0.35 + winH / 2, 1.25, cfg.trimColor);
-    addBox(windowNX, 0.08, 0.07, 2.26, -hs + wallT + 0.02, 0.35, 0.15, cfg.trimColor);
-    addBox(windowNX, 0.08, 0.07, 2.26, -hs + wallT + 0.02, 0.35 + winH, 0.15, cfg.trimColor);
-
-    // Low front architectural glass partition with wood posts (cutaway feel)
     const railH = 0.62;
-    addBox(group, s - 0.18, railH, 0.05, 0, floorH + railH / 2, hs - 0.07, 0xBCE0F2, {
-      transparent: true, opacity: 0.30, roughness: 0.1, metalness: 0.1, castShadow: false
-    });
-    addBox(group, 0.05, railH, s - 0.18, hs - 0.07, floorH + railH / 2, 0, 0xBCE0F2, {
-      transparent: true, opacity: 0.28, roughness: 0.1, metalness: 0.1, castShadow: false
-    });
-    // Wooden corner & rail caps
-    addBox(group, s - 0.06, 0.06, 0.09, 0, floorH + railH + 0.02, hs - 0.07, cfg.trimColor);
-    addBox(group, 0.09, 0.06, s - 0.06, hs - 0.07, floorH + railH + 0.02, 0, cfg.trimColor);
-    addBox(group, 0.10, railH + 0.08, 0.10, hs - 0.07, floorH + railH / 2, hs - 0.07, cfg.trimColor);
+    if (!mergePZ) {
+      if (doorPZ || isStreetFront) {
+        const seg = (s - 0.18 - doorW) / 2;
+        addBox(group, seg, railH, 0.05, -(doorW / 2 + seg / 2), floorH + railH / 2, hs - 0.07, 0xBCE0F2, { transparent: true, opacity: 0.30, roughness: 0.1, castShadow: false });
+        addBox(group, seg, railH, 0.05, (doorW / 2 + seg / 2), floorH + railH / 2, hs - 0.07, 0xBCE0F2, { transparent: true, opacity: 0.30, roughness: 0.1, castShadow: false });
+        addBox(group, seg + 0.06, 0.06, 0.09, -(doorW / 2 + seg / 2), floorH + railH + 0.02, hs - 0.07, cfg.trimColor);
+        addBox(group, seg + 0.06, 0.06, 0.09, (doorW / 2 + seg / 2), floorH + railH + 0.02, hs - 0.07, cfg.trimColor);
+        addBox(group, 0.08, railH + 0.06, 0.09, -doorW / 2, floorH + railH / 2, hs - 0.07, cfg.trimColor);
+        addBox(group, 0.08, railH + 0.06, 0.09, doorW / 2, floorH + railH / 2, hs - 0.07, cfg.trimColor);
+      } else {
+        addBox(group, s - 0.18, railH, 0.05, 0, floorH + railH / 2, hs - 0.07, 0xBCE0F2, { transparent: true, opacity: 0.30, roughness: 0.1, metalness: 0.1, castShadow: false });
+        addBox(group, s - 0.06, 0.06, 0.09, 0, floorH + railH + 0.02, hs - 0.07, cfg.trimColor);
+      }
+    }
+
+    if (!mergePX) {
+      if (doorPX) {
+        const seg = (s - 0.18 - doorW) / 2;
+        addBox(group, 0.05, railH, seg, hs - 0.07, floorH + railH / 2, -(doorW / 2 + seg / 2), 0xBCE0F2, { transparent: true, opacity: 0.28, roughness: 0.1, castShadow: false });
+        addBox(group, 0.05, railH, seg, hs - 0.07, floorH + railH / 2, (doorW / 2 + seg / 2), 0xBCE0F2, { transparent: true, opacity: 0.28, roughness: 0.1, castShadow: false });
+        addBox(group, 0.09, 0.06, seg + 0.06, hs - 0.07, floorH + railH + 0.02, -(doorW / 2 + seg / 2), cfg.trimColor);
+        addBox(group, 0.09, 0.06, seg + 0.06, hs - 0.07, floorH + railH + 0.02, (doorW / 2 + seg / 2), cfg.trimColor);
+        addBox(group, 0.09, railH + 0.06, 0.08, hs - 0.07, floorH + railH / 2, -doorW / 2, cfg.trimColor);
+        addBox(group, 0.09, railH + 0.06, 0.08, hs - 0.07, floorH + railH / 2, doorW / 2, cfg.trimColor);
+      } else {
+        addBox(group, 0.05, railH, s - 0.18, hs - 0.07, floorH + railH / 2, 0, 0xBCE0F2, { transparent: true, opacity: 0.28, roughness: 0.1, metalness: 0.1, castShadow: false });
+        addBox(group, 0.09, 0.06, s - 0.06, hs - 0.07, floorH + railH + 0.02, 0, cfg.trimColor);
+      }
+    }
+
+    if (!mergePX && !mergePZ) {
+      addBox(group, 0.10, railH + 0.08, 0.10, hs - 0.07, floorH + railH / 2, hs - 0.07, cfg.trimColor);
+    }
   }
 
   const interior = new THREE.Group();
@@ -95,8 +203,26 @@ function buildRoomShell(room, cfg) {
   const wallPropsNX = [];
   const wallPropsNZ = [];
   interior.traverse((child) => {
-    if (child.userData && child.userData.wallSide === 'NX') wallPropsNX.push(child);
-    if (child.userData && child.userData.wallSide === 'NZ') wallPropsNZ.push(child);
+    if (child.userData && child.userData.wallSide === 'NX') {
+      if (mergeNX) {
+        child.visible = false;
+        child.userData.removedByMerge = true;
+      } else if (doorNX) {
+        child.position.z = -1.25;
+        child.scale.z = 0.62;
+      }
+      wallPropsNX.push(child);
+    }
+    if (child.userData && child.userData.wallSide === 'NZ') {
+      if (mergeNZ || (doorNZ && room.type === 'dispatch')) {
+        child.visible = false;
+        child.userData.removedByMerge = true;
+      } else if (doorNZ && Math.abs(child.position.x) < 0.75 && child.position.y < 1.75) {
+        child.position.x = 1.24;
+        child.scale.x = 0.62;
+      }
+      wallPropsNZ.push(child);
+    }
   });
 
   return { group, interior, animHooks, wallNX, wallNZ, windowNX, wallPropsNX, wallPropsNZ, roomLight, lanternMat };
@@ -746,8 +872,9 @@ function rebuildRooms3D() {
       <div class="room-tag-row">
         <span>${cfg.icon}</span>
         <span class="room-tag-lv">Lv.${room.level}</span>
+        <span class="room-tag-merge hidden" title="Không gian đã gộp ô"></span>
         <span class="room-tag-syn hidden" title="Thưởng vị trí liền kề"></span>
-        <span class="room-tag-up hidden" title="Đủ Xu nâng cấp">↑</span>
+        <span class="room-tag-up hidden" title="Đủ điều kiện nâng cấp">↑</span>
       </div>
       <div class="room-tag-warn hidden"></div>
       <div class="room-tag-bar"><div class="room-tag-fill" style="width:${Math.round(room.progress * 100)}%"></div></div>
@@ -760,8 +887,122 @@ function rebuildRooms3D() {
     overlayLayer.appendChild(tag);
     roomTagMap.set(key, tag);
   }
+  rebuildWorldAgents3D();
   updatePlotHighlights();
   rebuildSynergyLines3D();
+}
+
+function buildDoorwayPath(srcRoom, dstRoom) {
+  const pA = gridToWorld3D(srcRoom.gx, srcRoom.gy);
+  const pB = gridToWorld3D(dstRoom.gx, dstRoom.gy);
+  const preDoor = pA.clone().lerp(pB, 0.36);
+  const doorMid = pA.clone().lerp(pB, 0.50);
+  const postDoor = pA.clone().lerp(pB, 0.64);
+  const dest = new THREE.Vector3(
+    pB.x + (Math.random() - 0.5) * 1.1,
+    0.29,
+    pB.z + 0.25 + (Math.random() - 0.5) * 0.9
+  );
+  preDoor.y = 0.29;
+  doorMid.y = 0.29;
+  postDoor.y = 0.29;
+  return [preDoor, doorMid, postDoor, dest];
+}
+
+function getAdjacentRoomsOf(room) {
+  return state.rooms.filter(r => r !== room && (Math.abs(r.gx - room.gx) + Math.abs(r.gy - room.gy) === 1));
+}
+
+function spawnStreetWalker(visitRestaurant = false, isVip = false) {
+  if (streetWalkers.length >= 10) return;
+  const guestColors = [0xD97B6C, 0x5B8FB3, 0x62A87C, 0xC99559, 0x8E6BB0, 0xD4828E];
+  const col = isVip ? 0xE6B34C : guestColors[Math.floor(Math.random() * guestColors.length)];
+  const mesh = createMiniCharacter('dining', col, true);
+
+  const fromLeft = Math.random() < 0.5;
+  const startX = fromLeft ? -streetMetrics.halfSpan + 0.6 : streetMetrics.halfSpan - 0.6;
+  const endX = fromLeft ? streetMetrics.halfSpan - 0.6 : -streetMetrics.halfSpan + 0.6;
+  const laneZ = streetMetrics.sidewalkZ + (Math.random() - 0.5) * 0.55;
+
+  mesh.position.set(startX, 0.11, laneZ);
+  worldAgentsGroup.add(mesh);
+
+  const waypoints = [];
+  const diningRooms = state.rooms.filter(r => r.type === 'dining' || r.type === 'cafe');
+
+  if (visitRestaurant && diningRooms.length > 0) {
+    const gridSize = getGridSize();
+    const frontChoices = diningRooms.filter(r => r.gy === gridSize - 1);
+    const targetRoom = frontChoices.length > 0
+      ? frontChoices[Math.floor(Math.random() * frontChoices.length)]
+      : diningRooms[Math.floor(Math.random() * diningRooms.length)];
+    const rPos = gridToWorld3D(targetRoom.gx, targetRoom.gy);
+    const entryX = targetRoom.gy === gridSize - 1 ? rPos.x : 0;
+
+    waypoints.push(
+      { pos: new THREE.Vector3(entryX, 0.11, streetMetrics.sidewalkZ - 0.25), wait: 0.15 },
+      { pos: new THREE.Vector3(rPos.x + (Math.random() - 0.5) * 0.85, 0.29, rPos.z + 0.55), wait: 3.8 + Math.random() * 2.5, dinegx: targetRoom.gx, dinegy: targetRoom.gy },
+      { pos: new THREE.Vector3(entryX, 0.11, streetMetrics.sidewalkZ - 0.25), wait: 0.1 },
+      { pos: new THREE.Vector3(endX, 0.11, laneZ), wait: 0 }
+    );
+  } else {
+    waypoints.push({ pos: new THREE.Vector3(endX, 0.11, laneZ), wait: 0 });
+  }
+
+  streetWalkers.push({
+    mesh,
+    waypoints,
+    wpIdx: 0,
+    wait: 0,
+    speed: isVip ? 1.85 : (1.35 + Math.random() * 0.45),
+    phase: Math.random() * 6,
+    isVip
+  });
+}
+
+function rebuildWorldAgents3D() {
+  while (worldAgentsGroup.children.length) {
+    const child = worldAgentsGroup.children[0];
+    disposeObject3D(child);
+    worldAgentsGroup.remove(child);
+  }
+  roamingStaff.length = 0;
+  streetWalkers.length = 0;
+
+  // Spawn inter-room courier/waiter staff walking between adjacent rooms via doorways
+  const connectedRooms = state.rooms.filter(r => getAdjacentRoomsOf(r).length > 0);
+  if (connectedRooms.length > 0) {
+    const courierCount = Math.min(6, Math.max(2, Math.ceil(connectedRooms.length * 0.65)));
+    const roles = ['warehouse', 'dining', 'packing'];
+    const cols = [0xD68432, 0x4A6E8F, 0x2B8080];
+    for (let i = 0; i < courierCount; i++) {
+      const startRoom = connectedRooms[i % connectedRooms.length];
+      const neighbors = getAdjacentRoomsOf(startRoom);
+      const nextRoom = neighbors[Math.floor(Math.random() * neighbors.length)];
+      const role = roles[i % roles.length];
+      const charMesh = createMiniCharacter(role, cols[i % cols.length], false);
+      const pStart = gridToWorld3D(startRoom.gx, startRoom.gy);
+      charMesh.position.set(pStart.x, 0.29, pStart.z + 0.2);
+      worldAgentsGroup.add(charMesh);
+
+      roamingStaff.push({
+        mesh: charMesh,
+        curRoom: nextRoom,
+        waypoints: buildDoorwayPath(startRoom, nextRoom),
+        wpIdx: 0,
+        wait: Math.random() * 0.8,
+        phase: Math.random() * 6
+      });
+    }
+  }
+
+  // Seed initial pedestrians & entering restaurant guests on the street
+  for (let i = 0; i < 4; i++) {
+    spawnStreetWalker(i < 2, false);
+    if (streetWalkers[i]) {
+      streetWalkers[i].mesh.position.x = (Math.random() - 0.5) * streetMetrics.halfSpan * 1.3;
+    }
+  }
 }
 
 function updatePlotHighlights() {

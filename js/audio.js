@@ -43,5 +43,8 @@ const SoundFX = {
   },
   reward() {
     [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => this.playTone(f, 0.15, 'sine', 0.048, i * 0.07));
+  },
+  levelUp() {
+    [523.25, 659.25, 783.99, 987.77, 1046.5].forEach((f, i) => this.playTone(f, 0.18, 'triangle', 0.06, i * 0.065));
   }
 };

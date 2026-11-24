@@ -29,6 +29,16 @@ function updateHUD() {
   document.getElementById('stat-total-served').textContent = state.totalServed;
   document.getElementById('stat-total-earned').textContent = `${state.totalEarned.toLocaleString('vi-VN')} Xu`;
 
+  const curLv = state.playerLevel || 1;
+  const nextExp = getExpForNextLevel(curLv);
+  const expPct = Math.max(0, Math.min(100, Math.round(((state.exp || 0) / nextExp) * 100)));
+  const lvEl = document.getElementById('stat-level');
+  const expEl = document.getElementById('stat-exp');
+  const expBarEl = document.getElementById('stat-exp-bar');
+  if (lvEl) lvEl.textContent = curLv;
+  if (expEl) expEl.textContent = `${state.exp || 0}/${nextExp} EXP`;
+  if (expBarEl) expBarEl.style.width = `${expPct}%`;
+
   const rates = getNetResourceRates();
   updateRateBadge('rate-coins', rates.coins);
   updateRateBadge('rate-ingredients', rates.ingredients);
@@ -48,7 +58,7 @@ function updateHUD() {
     expandLabelEl.textContent = nextTier ? `Mở ${nextTier.size}×${nextTier.size}` : `${gridSize}×${gridSize} Max`;
   }
   if (expandBtn && nextTier) {
-    const canExpand = state.coins >= nextTier.cost && state.rep >= nextTier.minRep;
+    const canExpand = state.coins >= nextTier.cost && state.rep >= nextTier.minRep && curLv >= (nextTier.unlockLevel || 1);
     expandBtn.classList.toggle('border-emerald-500/60', canExpand);
   }
 
@@ -332,32 +342,54 @@ function renderDrawer() {
   if (!room) {
     document.getElementById('drawer-icon').textContent = '🏗️';
     document.getElementById('drawer-title').textContent = 'Xây phân khu mới';
-    document.getElementById('drawer-subtitle').textContent = `Ô đất trống (${gx + 1}, ${gy + 1})`;
+    const isFrontStreet = gy === getGridSize() - 1;
+    document.getElementById('drawer-subtitle').textContent = `Ô đất trống (${gx + 1}, ${gy + 1})${isFrontStreet ? ' · Mặt tiền Phố' : ''}`;
 
-    let html = `<p class="text-xs text-stone-500">Chọn một bộ phận nhà hàng hoặc logistics để mở rộng trên ô đất này:</p><div class="space-y-2.5">`;
+    let html = `<p class="text-xs text-stone-500">Chọn phân khu xây dựng (đặt 2 phòng <strong>cùng loại</strong> sát nhau sẽ <strong>xóa tường gộp ô</strong>; khác loại sẽ <strong>mở cửa thông phòng</strong>):</p><div class="space-y-2.5">`;
     for (const cfg of Object.values(GAME_CONFIG.rooms)) {
-      const canAfford = state.coins >= cfg.cost;
+      const unlocked = isRoomUnlocked(cfg.id);
+      const reqLv = cfg.unlockLevel || 1;
+      const canAfford = unlocked && state.coins >= cfg.cost;
       const syn = getRoomSynergy(null, gx, gy, cfg.id);
+      const adjSame = state.rooms.filter(r => r.type === cfg.id && Math.abs(r.gx - gx) + Math.abs(r.gy - gy) === 1);
+      const adjDiff = state.rooms.filter(r => r.type !== cfg.id && Math.abs(r.gx - gx) + Math.abs(r.gy - gy) === 1);
+
+      const mergePreviewBadge = adjSame.length > 0
+        ? `<div class="text-[10.5px] font-bold text-teal-900 bg-teal-50 border border-teal-300/80 rounded-xl px-2 py-1">🔗 Sẽ xóa tường gộp ô với ${cfg.name} cạnh bên (+16% sản lượng & +10% tốc độ)</div>`
+        : (adjDiff.length > 0
+          ? `<div class="text-[10px] font-medium text-stone-600 bg-stone-50 border border-stone-200/70 rounded-xl px-2 py-1">🚪 Sẽ mở ${adjDiff.length} cửa thông phòng cho nhân viên qua lại</div>`
+          : '');
+
       const synBadge = syn.links.length > 0
         ? `<div class="text-[10.5px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200/70 rounded-xl px-2 py-1">✨ Liên kết tại ô này: ${syn.links.map(l => l.label).join(' · ')}</div>`
         : '';
+      const lockBadge = !unlocked
+        ? `<span class="inline-block text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-900">🔒 Mở ở Cấp ${reqLv}</span>`
+        : '';
+
       html += `
-        <div class="bg-white/90 border border-stone-200/80 rounded-2xl p-3 flex flex-col gap-2">
+        <div class="bg-white/90 border ${unlocked ? 'border-stone-200/80' : 'border-stone-200/60 opacity-75'} rounded-2xl p-3 flex flex-col gap-2">
           <div class="flex items-start justify-between gap-2">
             <div class="flex items-center gap-2.5">
               <div class="w-8 h-8 rounded-xl flex items-center justify-center text-base border border-stone-900/10" style="background:${cfg.floorTint}">${cfg.icon}</div>
               <div>
                 <div class="font-bold text-xs text-stone-900">${cfg.name}</div>
-                <span class="inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded bg-stone-100 text-stone-600">${cfg.category}</span>
+                <div class="flex flex-wrap items-center gap-1 mt-0.5">
+                  <span class="inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded bg-stone-100 text-stone-600">${cfg.category}</span>
+                  ${lockBadge}
+                </div>
               </div>
             </div>
-            <span class="text-xs font-bold ${canAfford ? 'text-amber-800' : 'text-stone-400'}">${cfg.cost} Xu</span>
+            <span class="text-xs font-bold ${canAfford ? 'text-amber-800' : 'text-stone-400'}">${cfg.cost.toLocaleString('vi-VN')} Xu</span>
           </div>
           <p class="text-[11px] text-stone-600 leading-snug">${cfg.desc}</p>
+          ${mergePreviewBadge}
           ${synBadge}
-          <div class="flex items-center justify-between pt-1.5 border-t border-stone-100">
-            <span class="text-[11px] font-semibold text-emerald-700">${cfg.effectText}</span>
-            <button data-build="${cfg.id}" class="btn-primary px-3 py-1 rounded-xl text-xs font-bold" ${canAfford ? '' : 'disabled'}>Xây ngay</button>
+          <div class="flex items-center justify-between pt-1.5 border-t border-stone-100 gap-2">
+            <span class="text-[10.5px] font-semibold text-emerald-700">${cfg.effectText} · +${cfg.expPerCycle || 8} EXP</span>
+            <button data-build="${cfg.id}" class="btn-primary px-3 py-1 rounded-xl text-xs font-bold shrink-0" ${canAfford ? '' : 'disabled'}>
+              ${unlocked ? 'Xây ngay' : `Cấp ${reqLv}`}
+            </button>
           </div>
         </div>
       `;
@@ -369,18 +401,16 @@ function renderDrawer() {
     });
   } else {
     const cfg = GAME_CONFIG.rooms[room.type];
-    const upCost = getUpgradeCost(room);
+    const upReq = getRoomUpgradeRequirements(room);
     const staffCost = getStaffCost(room);
-    const canUp = room.level < GAME_CONFIG.MAX_LEVEL && state.coins >= upCost;
+    const canUp = upReq.met;
     const canStaff = room.staff < GAME_CONFIG.MAX_STAFF_PER_ROOM && state.coins >= staffCost;
     const bonuses = getGlobalBonuses();
     const refund = Math.round(cfg.cost * 0.6);
     const key = `${gx}_${gy}`;
 
     const curStats = getRoomCycleStats(room, room.level, room.staff, bonuses);
-    const nextLvStats = room.level < GAME_CONFIG.MAX_LEVEL
-      ? getRoomCycleStats(room, room.level + 1, room.staff, bonuses)
-      : null;
+    const nextLvStats = getRoomCycleStats(room, room.level + 1, room.staff, bonuses);
     const nextStaffStats = room.staff < GAME_CONFIG.MAX_STAFF_PER_ROOM
       ? getRoomCycleStats(room, room.level, room.staff + 1, bonuses)
       : null;
@@ -393,13 +423,40 @@ function renderDrawer() {
       ? `⚠️ Đang tạm dừng: ${missing.label} (Cần ${missing.needed}, hiện có ${missing.current})`
       : `✅ Đang vận hành · Chu kỳ ${curStats.cycleSec.toFixed(1)}s`;
 
-    const upgradeDesc = nextLvStats
-      ? `Lên Lv.${room.level + 1}: ${formatRoomOutput(curStats.output)} → ${formatRoomOutput(nextLvStats.output)} · Chu kỳ ${curStats.cycleSec.toFixed(1)}s → ${nextLvStats.cycleSec.toFixed(1)}s`
-      : 'Đã đạt cấp tối đa';
+    const upgradeDesc = `Lên Lv.${upReq.nextLv}: ${formatRoomOutput(curStats.output)} → ${formatRoomOutput(nextLvStats.output)} · Chu kỳ ${curStats.cycleSec.toFixed(1)}s → ${nextLvStats.cycleSec.toFixed(1)}s · Thưởng +${upReq.expGain} EXP`;
+
+    const hasLv = (state.playerLevel || 1) >= upReq.reqPlayerLv;
+    const hasCoins = state.coins >= upReq.coins;
+    const hasRep = (state.rep || 0) >= upReq.reqRep;
+    const hasIng = (state.ingredients || 0) >= upReq.reqIngredients;
+
+    const reqBadges = [
+      `<span class="px-1.5 py-0.5 rounded-md border text-[10px] font-bold ${hasLv ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-700'}">⭐ Cấp ${upReq.reqPlayerLv}</span>`,
+      `<span class="px-1.5 py-0.5 rounded-md border text-[10px] font-bold ${hasCoins ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-700'}">💰 ${upReq.coins.toLocaleString('vi-VN')} Xu</span>`
+    ];
+    if (upReq.reqRep > 0) {
+      reqBadges.push(`<span class="px-1.5 py-0.5 rounded-md border text-[10px] font-bold ${hasRep ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-700'}">🏆 ${upReq.reqRep}★ Uy tín</span>`);
+    }
+    if (upReq.reqIngredients > 0) {
+      reqBadges.push(`<span class="px-1.5 py-0.5 rounded-md border text-[10px] font-bold ${hasIng ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-700'}">🥬 Tiêu ${upReq.reqIngredients} Kho</span>`);
+    }
+    const milestoneHtml = upReq.isMilestone
+      ? `<div class="text-[10.5px] font-bold text-amber-900 bg-amber-100/80 border border-amber-300 rounded-lg px-2 py-1 mt-1.5">🌟 Cột mốc Đột phá Lv.${upReq.nextLv}: Nhân ×1.20 sản lượng & nâng bậc kiến trúc 3D!</div>`
+      : '';
 
     const staffDesc = nextStaffStats
       ? `Hiện có ${room.staff} người: ${formatRoomOutput(curStats.output)} → ${formatRoomOutput(nextStaffStats.output)} (+1 nhân sự 3D)`
       : 'Đã đủ nhân sự';
+
+    const mergeInfo = curStats.mergeInfo;
+    const mergeHtml = (mergeInfo && mergeInfo.isMerged)
+      ? `<div class="bg-teal-50/90 border border-teal-300/80 rounded-2xl p-3 space-y-1">
+           <div class="text-[10.5px] font-bold text-teal-900 uppercase tracking-wide">🔗 Đã Gộp Không Gian (${mergeInfo.size} ô thông tường)</div>
+           <div class="text-[11.5px] font-semibold text-teal-800">Tường ngăn đã mở thông · Thưởng +${mergeInfo.outputPct}% sản lượng & +${mergeInfo.speedPct}% tốc độ!</div>
+         </div>`
+      : `<div class="bg-stone-50 border border-stone-200/70 rounded-2xl p-2.5 text-[11px] text-stone-600">
+           🧱 <strong class="text-stone-800">Mẹo Gộp Ô:</strong> Đặt thêm một <strong>${cfg.name}</strong> ngay sát cạnh để xóa tường ngăn và nhận +16% sản lượng, +10% tốc độ.
+         </div>`;
 
     const synLinks = curStats.synergy ? curStats.synergy.links : [];
     const synRules = (GAME_CONFIG.synergies && GAME_CONFIG.synergies[room.type]) || [];
@@ -407,7 +464,7 @@ function renderDrawer() {
     if (synLinks.length > 0) {
       synergyHtml = `
         <div class="bg-orange-50/90 border border-orange-200/80 rounded-2xl p-3 space-y-1">
-          <div class="text-[10.5px] font-bold text-amber-900 uppercase tracking-wide">⚡ Liên kết liền kề đang bật</div>
+          <div class="text-[10.5px] font-bold text-amber-900 uppercase tracking-wide">⚡ Liên kết liền kề & Cửa thông phòng</div>
           ${synLinks.map(l => `<div class="text-[11.5px] font-semibold text-emerald-800">• ${l.label}</div>`).join('')}
         </div>
       `;
@@ -415,7 +472,7 @@ function renderDrawer() {
       const hints = synRules.map(r => GAME_CONFIG.rooms[r.withType]?.name).filter(Boolean);
       synergyHtml = `
         <div class="bg-stone-50 border border-stone-200/70 rounded-2xl p-2.5 text-[11px] text-stone-600">
-          💡 <strong class="text-stone-800">Mẹo vị trí:</strong> Đặt cạnh <strong>${hints.join(' hoặc ')}</strong> để nhận thưởng liền kề.
+          💡 <strong class="text-stone-800">Mẹo vị trí:</strong> Đặt cạnh <strong>${hints.join(' hoặc ')}</strong> để mở cửa nối & nhận thưởng liền kề.
         </div>
       `;
     }
@@ -444,9 +501,11 @@ function renderDrawer() {
          </div>`
       : '';
 
+    const tierCount = Math.floor(room.level / 5);
+    const tierBadge = tierCount > 0 ? ` · Tinh Anh Bậc ${tierCount}` : '';
     document.getElementById('drawer-icon').textContent = cfg.icon;
     document.getElementById('drawer-title').textContent = `${cfg.name} · Lv.${room.level}`;
-    document.getElementById('drawer-subtitle').textContent = `${cfg.category} · ${room.staff}/${GAME_CONFIG.MAX_STAFF_PER_ROOM} nhân sự`;
+    document.getElementById('drawer-subtitle').textContent = `${cfg.category} · ${room.staff}/${GAME_CONFIG.MAX_STAFF_PER_ROOM} nhân sự${tierBadge}`;
 
     body.innerHTML = `
       ${hazardHtml}
@@ -456,8 +515,8 @@ function renderDrawer() {
           ${statusText}
         </div>
         <div class="text-[11.5px] text-stone-700 bg-stone-50 border border-stone-200/70 rounded-xl px-2.5 py-1.5 flex items-center justify-between gap-2">
-          <span class="text-stone-500">Sản lượng thực tế:</span>
-          <span class="font-bold text-stone-900">${formatRoomOutput(curStats.output)}</span>
+          <span class="text-stone-500">Sản lượng & EXP:</span>
+          <span class="font-bold text-stone-900">${formatRoomOutput(curStats.output)} · <span class="text-amber-700">+${curStats.expGain} EXP</span></span>
         </div>
         <div>
           <div class="flex justify-between text-[11px] text-stone-500 mb-1">
@@ -473,19 +532,26 @@ function renderDrawer() {
         </button>
       </div>
 
+      ${mergeHtml}
       ${synergyHtml}
       ${menuHtml}
       ${perksHtml}
 
       <div class="space-y-2">
-        <div class="bg-white/90 border border-stone-200/80 rounded-2xl p-3 flex items-center justify-between gap-2">
-          <div class="min-w-0">
-            <div class="text-xs font-bold text-stone-900">Nâng cấp thiết bị</div>
-            <div class="text-[11px] text-stone-500 leading-snug mt-0.5">${upgradeDesc}</div>
+        <div class="bg-white/90 border border-stone-200/80 rounded-2xl p-3 space-y-2">
+          <div class="flex items-start justify-between gap-2">
+            <div class="min-w-0">
+              <div class="text-xs font-bold text-stone-900">Nâng cấp vô hạn (Lv.${room.level} → Lv.${upReq.nextLv})</div>
+              <div class="text-[11px] text-stone-500 leading-snug mt-0.5">${upgradeDesc}</div>
+            </div>
+            <button id="btn-upgrade-room" class="btn-primary px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap shrink-0" ${canUp ? '' : 'disabled'}>
+              Nâng cấp
+            </button>
           </div>
-          <button id="btn-upgrade-room" class="btn-primary px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap shrink-0" ${canUp ? '' : 'disabled'}>
-            ${room.level >= GAME_CONFIG.MAX_LEVEL ? 'Tối đa' : `${upCost} Xu`}
-          </button>
+          <div class="flex flex-wrap gap-1 pt-1 border-t border-stone-100">
+            ${reqBadges.join('')}
+          </div>
+          ${milestoneHtml}
         </div>
 
         <div class="bg-white/90 border border-stone-200/80 rounded-2xl p-3 flex items-center justify-between gap-2">
@@ -494,7 +560,7 @@ function renderDrawer() {
             <div class="text-[11px] text-stone-500 leading-snug mt-0.5">${staffDesc}</div>
           </div>
           <button id="btn-hire-staff" class="btn-primary px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap shrink-0" ${canStaff ? '' : 'disabled'}>
-            ${room.staff >= GAME_CONFIG.MAX_STAFF_PER_ROOM ? 'Đủ' : `${staffCost} Xu`}
+            ${room.staff >= GAME_CONFIG.MAX_STAFF_PER_ROOM ? 'Đủ' : `${staffCost.toLocaleString('vi-VN')} Xu`}
           </button>
         </div>
       </div>
@@ -546,14 +612,19 @@ function renderDrawer() {
     });
 
     document.getElementById('btn-upgrade-room').addEventListener('click', () => {
-      if (room.level >= GAME_CONFIG.MAX_LEVEL || state.coins < upCost) return;
-      state.coins -= upCost;
+      const req = getRoomUpgradeRequirements(room);
+      if (!req.met) return;
+      state.coins -= req.coins;
+      if (req.reqIngredients > 0) {
+        state.ingredients = Math.max(0, state.ingredients - req.reqIngredients);
+      }
       room.level += 1;
       triggerRoomPop(room.gx, room.gy);
       rebuildRooms3D();
       SoundFX.upgrade();
-      spawnFloater(room.gx, room.gy, `Lên Lv.${room.level}`, '#B85524');
-      showToast(`Đã nâng cấp ${cfg.name} lên Lv.${room.level}!`);
+      spawnFloater(room.gx, room.gy, `Lên Lv.${room.level} · +${req.expGain} EXP`, '#B85524');
+      showToast(`⬆️ Đã nâng cấp ${cfg.name} lên Lv.${room.level}! (+${req.expGain} EXP)`);
+      gainExp(req.expGain);
       updateHUD();
       renderDrawer();
       saveGame(false);
@@ -565,8 +636,9 @@ function renderDrawer() {
       room.staff += 1;
       rebuildRooms3D();
       SoundFX.upgrade();
-      spawnFloater(room.gx, room.gy, '+1 Nhân sự', '#266E56');
-      showToast(`Đã tuyển thêm nhân viên cho ${cfg.name}!`);
+      spawnFloater(room.gx, room.gy, '+1 Nhân sự · +20 EXP', '#266E56');
+      showToast(`Đã tuyển thêm nhân viên cho ${cfg.name}! (+20 EXP)`);
+      gainExp(20);
       updateHUD();
       renderDrawer();
       saveGame(false);
@@ -599,14 +671,22 @@ function renderDrawer() {
 
 function buildRoom(gx, gy, typeId) {
   const cfg = GAME_CONFIG.rooms[typeId];
-  if (!cfg || getRoomAt(gx, gy) || state.coins < cfg.cost) return;
+  if (!cfg || !isRoomUnlocked(typeId) || getRoomAt(gx, gy) || state.coins < cfg.cost) return;
   state.coins -= cfg.cost;
-  state.rooms.push({ gx, gy, type: typeId, level: 1, staff: 1, progress: 0 });
+  const newRoom = { gx, gy, type: typeId, level: 1, staff: 1, progress: 0 };
+  state.rooms.push(newRoom);
   triggerRoomPop(gx, gy);
   rebuildRooms3D();
   SoundFX.build();
-  spawnFloater(gx, gy, `Khai trương ${cfg.name}`, '#266E56');
-  showToast(`Đã xây dựng ${cfg.name}!`);
+  const mInfo = getMergedZoneInfo(newRoom);
+  if (mInfo.isMerged) {
+    spawnFloater(gx, gy, `🔗 Gộp ${mInfo.size} ô ${cfg.name}`, '#1F5E49');
+    showToast(`🔗 Đã xây & xóa tường gộp ô ${cfg.name} (${mInfo.size} phân khu thông nhau)! (+35 EXP)`);
+  } else {
+    spawnFloater(gx, gy, `Khai trương ${cfg.name}`, '#266E56');
+    showToast(`Đã xây dựng ${cfg.name}! (+35 EXP)`);
+  }
+  gainExp(35);
   updateHUD();
   updateContractUI();
   renderDrawer();
@@ -616,8 +696,10 @@ function buildRoom(gx, gy, typeId) {
 function renderExpansionPanel() {
   const gridCard = document.getElementById('expansion-grid-card');
   const menuList = document.getElementById('expansion-menu-list');
+  const roadmapList = document.getElementById('expansion-roadmap-list');
   if (!gridCard || !menuList) return;
 
+  const playerLv = state.playerLevel || 1;
   const curSize = getGridSize();
   const nextTier = getNextGridTier();
   if (!nextTier) {
@@ -631,15 +713,17 @@ function renderExpansionPanel() {
       </div>
     `;
   } else {
+    const reqLv = nextTier.unlockLevel || 1;
+    const hasLv = playerLv >= reqLv;
     const hasCoins = state.coins >= nextTier.cost;
     const hasRep = state.rep >= nextTier.minRep;
     gridCard.innerHTML = `
       <div class="flex items-center justify-between gap-3">
         <div>
           <div class="font-bold text-stone-900">Mở rộng Quỹ đất: ${curSize}×${curSize} → ${nextTier.label}</div>
-          <div class="text-[11px] text-stone-500 mt-0.5">Yêu cầu: <strong class="${hasCoins ? 'text-amber-800' : 'text-red-600'}">${nextTier.cost.toLocaleString('vi-VN')} Xu</strong> & <strong class="${hasRep ? 'text-emerald-700' : 'text-red-600'}">${nextTier.minRep} Uy tín</strong></div>
+          <div class="text-[11px] text-stone-500 mt-0.5">Yêu cầu: <strong class="${hasLv ? 'text-emerald-700' : 'text-red-600'}">Cấp ${reqLv}</strong> · <strong class="${hasCoins ? 'text-amber-800' : 'text-red-600'}">${nextTier.cost.toLocaleString('vi-VN')} Xu</strong> · <strong class="${hasRep ? 'text-emerald-700' : 'text-red-600'}">${nextTier.minRep}★ Uy tín</strong></div>
         </div>
-        <button id="btn-do-expand-grid" class="btn-primary px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap" ${(hasCoins && hasRep) ? '' : 'disabled'}>
+        <button id="btn-do-expand-grid" class="btn-primary px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap" ${(hasLv && hasCoins && hasRep) ? '' : 'disabled'}>
           Mở rộng ngay
         </button>
       </div>
@@ -647,14 +731,15 @@ function renderExpansionPanel() {
     const expandActionBtn = document.getElementById('btn-do-expand-grid');
     if (expandActionBtn) {
       expandActionBtn.addEventListener('click', () => {
-        if (state.coins < nextTier.cost || state.rep < nextTier.minRep) return;
+        if ((state.playerLevel || 1) < reqLv || state.coins < nextTier.cost || state.rep < nextTier.minRep) return;
         state.coins -= nextTier.cost;
         state.gridSize = nextTier.size;
         buildGroundGrid();
         rebuildRooms3D();
         resetCamera();
         SoundFX.build();
-        showToast(`🗺️ Đã mở rộng khu đất lên ${nextTier.label}!`);
+        showToast(`🗺️ Đã mở rộng khu đất lên ${nextTier.label}! (+80 EXP)`);
+        gainExp(80);
         updateHUD();
         updateContractUI();
         renderExpansionPanel();
@@ -665,21 +750,22 @@ function renderExpansionPanel() {
 
   const activeId = getActiveMenuConfig().id;
   menuList.innerHTML = Object.values(GAME_CONFIG.menus || {}).map((m) => {
-    const unlocked = state.rep >= m.unlockRep;
+    const reqLv = m.unlockLevel || 1;
+    const unlocked = playerLv >= reqLv && state.rep >= m.unlockRep;
     const isActive = m.id === activeId;
     return `
       <div class="bg-white border ${isActive ? 'border-amber-600 ring-1 ring-amber-500/30' : 'border-stone-200/80'} rounded-2xl p-3 flex flex-col justify-between gap-2">
         <div>
           <div class="flex items-center justify-between gap-2">
             <span class="font-bold text-stone-900">${m.icon} ${m.name}</span>
-            <span class="text-[10.5px] font-semibold px-2 py-0.5 rounded-full ${unlocked ? 'bg-emerald-50 text-emerald-700' : 'bg-stone-100 text-stone-500'}">
-              ${unlocked ? (isActive ? 'Đang phục vụ' : 'Đã mở khóa') : `Cần ${m.unlockRep}★`}
+            <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full ${unlocked ? 'bg-emerald-50 text-emerald-700' : 'bg-stone-100 text-stone-500'}">
+              ${unlocked ? (isActive ? 'Đang phục vụ' : 'Đã mở khóa') : `Cấp ${reqLv} · ${m.unlockRep}★`}
             </span>
           </div>
           <p class="text-[11px] text-stone-500 mt-1 leading-snug">${m.desc}</p>
         </div>
         <button data-select-menu="${m.id}" class="${isActive ? 'btn-ghost active' : 'btn-primary'} w-full py-1.5 rounded-xl text-[11px] font-bold" ${(!unlocked || isActive) ? 'disabled' : ''}>
-          ${isActive ? '✓ Đang áp dụng' : (unlocked ? 'Chọn thực đơn này' : `Mở khóa ở ${m.unlockRep} Uy tín`)}
+          ${isActive ? '✓ Đang áp dụng' : (unlocked ? 'Chọn thực đơn này' : `Cần Cấp ${reqLv} & ${m.unlockRep} Uy tín`)}
         </button>
       </div>
     `;
@@ -689,7 +775,7 @@ function renderExpansionPanel() {
     btn.addEventListener('click', () => {
       const menuId = btn.getAttribute('data-select-menu');
       const cfg = GAME_CONFIG.menus[menuId];
-      if (!cfg || state.rep < cfg.unlockRep) return;
+      if (!cfg || (state.playerLevel || 1) < (cfg.unlockLevel || 1) || state.rep < cfg.unlockRep) return;
       state.activeMenu = menuId;
       SoundFX.upgrade();
       showToast(`${cfg.icon} Đã chuyển thực đơn sang ${cfg.name}!`);
@@ -699,4 +785,32 @@ function renderExpansionPanel() {
       saveGame(false);
     });
   });
+
+  if (roadmapList) {
+    const milestones = GAME_CONFIG.levelMilestones || [];
+    roadmapList.innerHTML = milestones.map((ms) => {
+      const reached = playerLv >= ms.level;
+      const isNext = !reached && playerLv + 1 === ms.level;
+      const boxCls = reached
+        ? 'bg-emerald-50/70 border-emerald-200/80'
+        : (isNext ? 'bg-amber-50/80 border-amber-300/80' : 'bg-white border-stone-200/80');
+      const badgeCls = reached
+        ? 'bg-emerald-600 text-white'
+        : (isNext ? 'bg-amber-500 text-white' : 'bg-stone-200 text-stone-700');
+      return `
+        <div class="border ${boxCls} rounded-xl px-3 py-2 flex items-center justify-between gap-2.5">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <span class="px-2 py-0.5 rounded-lg text-[10.5px] font-extrabold shrink-0 ${badgeCls}">Cấp ${ms.level}</span>
+            <div class="min-w-0">
+              <div class="font-bold text-[11.5px] text-stone-900 truncate">${ms.title}</div>
+              <div class="text-[10.5px] text-stone-600 leading-snug">${ms.unlocks}</div>
+            </div>
+          </div>
+          <span class="text-[10.5px] font-bold shrink-0 ${reached ? 'text-emerald-700' : (isNext ? 'text-amber-800' : 'text-stone-400')}">
+            ${reached ? '✓ Đã mở' : (isNext ? 'Sắp tới' : 'Khóa')}
+          </span>
+        </div>
+      `;
+    }).join('');
+  }
 }

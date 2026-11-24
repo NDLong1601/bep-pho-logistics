@@ -18,10 +18,14 @@ function updateCutawayWalls() {
       entry.windowNX.visible = !cutNX;
     }
     if (entry.wallPropsNX) {
-      for (const prop of entry.wallPropsNX) prop.visible = !cutNX;
+      for (const prop of entry.wallPropsNX) {
+        prop.visible = prop.userData.removedByMerge ? false : !cutNX;
+      }
     }
     if (entry.wallPropsNZ) {
-      for (const prop of entry.wallPropsNZ) prop.visible = !cutNZ;
+      for (const prop of entry.wallPropsNZ) {
+        prop.visible = prop.userData.removedByMerge ? false : !cutNZ;
+      }
     }
   });
 }
@@ -115,7 +119,12 @@ function updateSimulation(dt, timeSec) {
   state.ticketSpawnTimer = (state.ticketSpawnTimer !== undefined ? state.ticketSpawnTimer : 2.5) - effDt;
   if (state.ticketSpawnTimer <= 0) {
     const newTicket = spawnCustomerTicket();
-    if (newTicket && typeof renderTicketRail === 'function') renderTicketRail();
+    if (newTicket) {
+      if (typeof renderTicketRail === 'function') renderTicketRail();
+      if (newTicket.resource === 'dishes' && typeof spawnStreetWalker === 'function') {
+        spawnStreetWalker(true, newTicket.vip);
+      }
+    }
     const baseSpawn = phase.isRush ? 5.0 : 8.2;
     state.ticketSpawnTimer = Math.max(3.4, baseSpawn - Math.min(2.4, state.rooms.length * 0.22));
   }
@@ -138,22 +147,24 @@ function updateSimulation(dt, timeSec) {
     hazardSpawnTimer = 11 + Math.random() * 7;
   }
 
-  // Express order countdown / generation
-  if (state.expressOrder) {
-    state.expressOrder.timeLeft -= effDt;
-    if (state.expressOrder.timeLeft <= 0) {
-      state.expressOrder = null;
-      state.expressCooldown = 10;
-      showToast('Đơn hàng khẩn cấp đã hết thời gian!');
-    }
-    updateExpressOrderUI();
-  } else {
-    state.expressCooldown -= effDt;
-    if (state.expressCooldown <= 0) {
-      state.expressOrder = generateExpressOrder();
-      state.expressCooldown = 12;
+  // Express order countdown / generation (unlocks at Player Level 2+)
+  if ((state.playerLevel || 1) >= 2) {
+    if (state.expressOrder) {
+      state.expressOrder.timeLeft -= effDt;
+      if (state.expressOrder.timeLeft <= 0) {
+        state.expressOrder = null;
+        state.expressCooldown = 10;
+        showToast('Đơn hàng khẩn cấp đã hết thời gian!');
+      }
       updateExpressOrderUI();
-      if (state.expressOrder) showToast(`⚡ Đơn khẩn cấp mới: ${state.expressOrder.title}`);
+    } else {
+      state.expressCooldown -= effDt;
+      if (state.expressCooldown <= 0) {
+        state.expressOrder = generateExpressOrder();
+        state.expressCooldown = 12;
+        updateExpressOrderUI();
+        if (state.expressOrder) showToast(`⚡ Đơn khẩn cấp mới: ${state.expressOrder.title}`);
+      }
     }
   }
 
@@ -189,7 +200,7 @@ function updateSimulation(dt, timeSec) {
       room.starved = false;
       room.missingLabel = '';
       const eff = getRoomEffectiveMultipliers(room, bonuses);
-      const speed = (1 / cfg.cycleTime) * eff.speedMult * (1 + (room.level - 1) * 0.14);
+      const speed = (1 / cfg.cycleTime) * eff.speedMult * (1 + (room.level - 1) * 0.12);
       room.progress += effDt * speed;
       if (room.progress >= 1) {
         room.progress -= 1;
@@ -249,6 +260,100 @@ function updateSimulation(dt, timeSec) {
     }
   });
 
+  // Animate street vehicles, entering/exiting customers, and inter-room doorway staff
+  for (const v of streetVehicles) {
+    v.mesh.position.x += v.dir * v.speed * effDt;
+    if (v.dir > 0 && v.mesh.position.x > streetMetrics.halfSpan) {
+      v.mesh.position.x = -streetMetrics.halfSpan;
+    } else if (v.dir < 0 && v.mesh.position.x < -streetMetrics.halfSpan) {
+      v.mesh.position.x = streetMetrics.halfSpan;
+    }
+  }
+
+  if (Math.random() < effDt * 0.55) {
+    spawnStreetWalker(Math.random() < 0.6, false);
+  }
+
+  for (let i = streetWalkers.length - 1; i >= 0; i--) {
+    const w = streetWalkers[i];
+    if (w.wait > 0) {
+      w.wait -= effDt;
+      w.mesh.userData.legL.rotation.x = 0;
+      w.mesh.userData.legR.rotation.x = 0;
+      continue;
+    }
+    const target = w.waypoints[w.wpIdx];
+    if (!target) {
+      disposeObject3D(w.mesh);
+      worldAgentsGroup.remove(w.mesh);
+      streetWalkers.splice(i, 1);
+      continue;
+    }
+    const dx = target.pos.x - w.mesh.position.x;
+    const dy = target.pos.y - w.mesh.position.y;
+    const dz = target.pos.z - w.mesh.position.z;
+    const dist = Math.hypot(dx, dz);
+    if (dist < 0.08) {
+      w.mesh.position.copy(target.pos);
+      w.wait = target.wait || 0;
+      w.wpIdx += 1;
+      if (w.wpIdx >= w.waypoints.length) {
+        disposeObject3D(w.mesh);
+        worldAgentsGroup.remove(w.mesh);
+        streetWalkers.splice(i, 1);
+      }
+    } else {
+      const move = Math.min(dist, effDt * w.speed);
+      w.mesh.position.x += (dx / dist) * move;
+      w.mesh.position.z += (dz / dist) * move;
+      w.mesh.position.y += dy * Math.min(1, effDt * 8);
+      w.mesh.rotation.y = Math.atan2(dx, dz);
+      w.phase += effDt * 10;
+      w.mesh.userData.legL.rotation.x = Math.sin(w.phase) * 0.48;
+      w.mesh.userData.legR.rotation.x = -Math.sin(w.phase) * 0.48;
+    }
+  }
+
+  for (const s of roamingStaff) {
+    if (s.wait > 0) {
+      s.wait -= effDt;
+      s.mesh.userData.legL.rotation.x = 0;
+      s.mesh.userData.legR.rotation.x = 0;
+      continue;
+    }
+    const wp = s.waypoints[s.wpIdx];
+    if (!wp) {
+      const neighbors = getAdjacentRoomsOf(s.curRoom);
+      if (neighbors.length > 0) {
+        const nextRoom = neighbors[Math.floor(Math.random() * neighbors.length)];
+        s.waypoints = buildDoorwayPath(s.curRoom, nextRoom);
+        s.curRoom = nextRoom;
+        s.wpIdx = 0;
+        s.wait = 0.6 + Math.random() * 1.1;
+      } else {
+        s.wait = 1.5;
+      }
+      continue;
+    }
+    const dx = wp.x - s.mesh.position.x;
+    const dz = wp.z - s.mesh.position.z;
+    const dist = Math.hypot(dx, dz);
+    if (dist < 0.07) {
+      s.mesh.position.x = wp.x;
+      s.mesh.position.z = wp.z;
+      s.wpIdx += 1;
+    } else {
+      const stepMove = Math.min(dist, effDt * 1.45);
+      s.mesh.position.x += (dx / dist) * stepMove;
+      s.mesh.position.z += (dz / dist) * stepMove;
+      s.mesh.rotation.y = Math.atan2(dx, dz);
+      s.phase += effDt * 11;
+      s.mesh.position.y = 0.29 + Math.abs(Math.sin(s.phase)) * 0.05;
+      s.mesh.userData.legL.rotation.x = Math.sin(s.phase) * 0.48;
+      s.mesh.userData.legR.rotation.x = -Math.sin(s.phase) * 0.48;
+    }
+  }
+
   // Update steam puffs
   for (let i = steamPuffs.length - 1; i >= 0; i--) {
     const p = steamPuffs[i];
@@ -287,8 +392,8 @@ function completeRoomCycle(room, bonuses) {
     }
   }
 
-  const effBonuses = getRoomEffectiveMultipliers(room, bonuses);
-  const out = cfg.produce(room.level, room.staff, 1, effBonuses);
+  const cycleStats = getRoomCycleStats(room, room.level, room.staff, bonuses);
+  const out = cycleStats.output;
   const msgs = [];
   if (out.ingredients) { state.ingredients += out.ingredients; msgs.push(`+${out.ingredients} Kho`); bumpStat('pill-ingredients'); }
   if (out.dishes) { state.dishes += out.dishes; msgs.push(`+${out.dishes} Món`); bumpStat('pill-dishes'); }
@@ -302,6 +407,7 @@ function completeRoomCycle(room, bonuses) {
   }
   if (out.rep) { state.rep += out.rep; bumpStat('pill-rep'); }
   if (out.served) state.totalServed += out.served;
+  gainExp(cycleStats.expGain);
 
   // Auto-advance matching live customer ticket when service rooms finish a cycle
   if ((room.type === 'dining' || room.type === 'cafe' || room.type === 'dispatch' || room.type === 'drone_hub') && Array.isArray(state.tickets) && state.tickets.length > 0) {
@@ -359,11 +465,22 @@ function syncOverlays() {
       }
     }
 
-    const canUpgrade = entry.room.level < GAME_CONFIG.MAX_LEVEL && state.coins >= getUpgradeCost(entry.room);
+    const canUpgrade = getRoomUpgradeRequirements(entry.room).met;
     if (tag.dataset.canUp !== String(canUpgrade)) {
       tag.dataset.canUp = String(canUpgrade);
       const upEl = tag.querySelector('.room-tag-up');
       if (upEl) upEl.classList.toggle('hidden', !canUpgrade);
+    }
+
+    const mergeInfo = getMergedZoneInfo(entry.room);
+    const mergeText = mergeInfo.isMerged ? `🔗${mergeInfo.size}ô` : '';
+    if (tag.dataset.merge !== mergeText) {
+      tag.dataset.merge = mergeText;
+      const mergeEl = tag.querySelector('.room-tag-merge');
+      if (mergeEl) {
+        mergeEl.textContent = mergeText;
+        mergeEl.classList.toggle('hidden', !mergeText);
+      }
     }
 
     const syn = getRoomSynergy(entry.room);

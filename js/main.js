@@ -229,7 +229,8 @@ document.getElementById('btn-claim-contract').addEventListener('click', () => {
   state.rep += c.rep;
   state.contractIdx += 1;
   SoundFX.reward();
-  showToast(`Hoàn thành đơn hàng! +${c.reward} Xu & +${c.rep} Uy tín`);
+  showToast(`Hoàn thành đơn hàng! +${c.reward} Xu, +${c.rep} Uy tín & +55 EXP`);
+  gainExp(55);
   updateHUD();
   updateContractUI();
   if (selectedPlot) renderDrawer();
@@ -248,7 +249,8 @@ document.getElementById('btn-claim-express').addEventListener('click', () => {
   state.expressOrder = null;
   state.expressCooldown = 14;
   SoundFX.reward();
-  showToast(`⚡ Hoàn thành đơn khẩn cấp! +${o.reward} Xu & +${o.rep} Uy tín`);
+  showToast(`⚡ Hoàn thành đơn khẩn cấp! +${o.reward} Xu, +${o.rep} Uy tín & +40 EXP`);
+  gainExp(40);
   updateHUD();
   updateContractUI();
   if (selectedPlot) renderDrawer();
@@ -286,6 +288,10 @@ function openSystemModal(tabBtnId = 'tab-save') {
 document.getElementById('btn-system').addEventListener('click', () => openSystemModal('tab-save'));
 document.getElementById('btn-menu-select').addEventListener('click', () => openSystemModal('tab-expansion'));
 document.getElementById('btn-expand-grid').addEventListener('click', () => openSystemModal('tab-expansion'));
+const pillExpBtn = document.getElementById('pill-exp');
+if (pillExpBtn) {
+  pillExpBtn.addEventListener('click', () => openSystemModal('tab-expansion'));
+}
 
 document.getElementById('btn-close-modal').addEventListener('click', () => {
   modal.classList.add('hidden');

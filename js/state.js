@@ -8,6 +8,9 @@ function createInitialState() {
     dishes: 4,
     parcels: 0,
     rep: 10,
+    playerLevel: 1,
+    exp: 0,
+    totalExp: 0,
     day: 1,
     dayTimer: 0,
     totalServed: 0,
@@ -30,10 +33,9 @@ function createInitialState() {
     perks: {},
     autoNextDay: false,
     rooms: [
-      { gx: 1, gy: 1, type: 'warehouse', level: 1, staff: 1, progress: 0.25 },
-      { gx: 2, gy: 1, type: 'kitchen', level: 1, staff: 2, progress: 0.55 },
-      { gx: 2, gy: 2, type: 'dining', level: 1, staff: 2, progress: 0.15 },
-      { gx: 1, gy: 2, type: 'packing', level: 1, staff: 1, progress: 0.35 }
+      { gx: 1, gy: 2, type: 'warehouse', level: 1, staff: 1, progress: 0.25 },
+      { gx: 2, gy: 2, type: 'kitchen', level: 1, staff: 2, progress: 0.55 },
+      { gx: 2, gy: 3, type: 'dining', level: 1, staff: 2, progress: 0.15 }
     ]
   };
 }
@@ -65,6 +67,9 @@ function normalizeLoadedState(parsed) {
   if (typeof s.dailyOrdersCompleted !== 'number') s.dailyOrdersCompleted = 0;
   if (typeof s.dailyOrdersFailed !== 'number') s.dailyOrdersFailed = 0;
   if (!s.perks || typeof s.perks !== 'object' || Array.isArray(s.perks)) s.perks = {};
+  if (typeof s.playerLevel !== 'number' || s.playerLevel < 1) s.playerLevel = 1;
+  if (typeof s.exp !== 'number' || s.exp < 0) s.exp = 0;
+  if (typeof s.totalExp !== 'number' || s.totalExp < 0) s.totalExp = 0;
   s.autoNextDay = !!s.autoNextDay;
   return s;
 }
@@ -148,12 +153,132 @@ function getGlobalBonuses() {
   };
 }
 
+function getRoomUpgradeRequirements(room) {
+  const cfg = GAME_CONFIG.rooms[room.type];
+  const curLv = room.level || 1;
+  const nextLv = curLv + 1;
+  const coins = Math.round(cfg.upgradeBase * Math.pow(1.36, curLv - 1));
+  const reqPlayerLv = Math.max(1, Math.ceil(nextLv / 2));
+  const reqRep = nextLv >= 4 ? (nextLv - 3) * 6 : 0;
+  const reqIngredients = nextLv >= 3 ? Math.min(45, Math.floor(nextLv * 1.5)) : 0;
+  const expGain = 18 + curLv * 14;
+  const met = (state.coins >= coins)
+    && ((state.playerLevel || 1) >= reqPlayerLv)
+    && ((state.rep || 0) >= reqRep)
+    && ((state.ingredients || 0) >= reqIngredients);
+
+  return {
+    nextLv,
+    coins,
+    reqPlayerLv,
+    reqRep,
+    reqIngredients,
+    expGain,
+    isMilestone: nextLv % 5 === 0,
+    met
+  };
+}
+
 function getUpgradeCost(room) {
-  return Math.round(GAME_CONFIG.rooms[room.type].upgradeBase * Math.pow(1.65, room.level - 1));
+  return getRoomUpgradeRequirements(room).coins;
 }
 
 function getStaffCost(room) {
   return Math.round(GAME_CONFIG.rooms[room.type].staffCost * Math.pow(1.55, room.staff - 1));
+}
+
+function getExpForNextLevel(lv = state.playerLevel || 1) {
+  return Math.round(90 * Math.pow(1.35, Math.max(0, lv - 1)));
+}
+
+function isRoomUnlocked(typeId) {
+  const cfg = GAME_CONFIG.rooms[typeId];
+  if (!cfg) return false;
+  return (state.playerLevel || 1) >= (cfg.unlockLevel || 1);
+}
+
+function getUnlocksAtLevel(lv) {
+  const items = [];
+  for (const r of Object.values(GAME_CONFIG.rooms)) {
+    if (r.unlockLevel === lv) items.push(`${r.icon} ${r.name}`);
+  }
+  for (const m of Object.values(GAME_CONFIG.menus || {})) {
+    if (m.unlockLevel === lv) items.push(`${m.icon} Thực đơn ${m.name}`);
+  }
+  for (const g of (GAME_CONFIG.gridTiers || [])) {
+    if (g.unlockLevel === lv && g.size > 4) items.push(`🗺️ Đất ${g.label}`);
+  }
+  if (lv === 2) items.push('⚡ Đơn Khẩn Cấp');
+  return items;
+}
+
+function gainExp(amount) {
+  const add = Math.max(1, Math.round(amount || 0));
+  state.exp = (state.exp || 0) + add;
+  state.totalExp = (state.totalExp || 0) + add;
+  if (typeof bumpStat === 'function') bumpStat('pill-exp');
+
+  let leveledUp = false;
+  while (state.exp >= getExpForNextLevel(state.playerLevel || 1)) {
+    state.exp -= getExpForNextLevel(state.playerLevel || 1);
+    state.playerLevel = (state.playerLevel || 1) + 1;
+    leveledUp = true;
+    const bonusCoins = state.playerLevel * 85;
+    state.coins += bonusCoins;
+    state.totalEarned += bonusCoins;
+    state.dailyEarned = (state.dailyEarned || 0) + bonusCoins;
+
+    const unlocked = getUnlocksAtLevel(state.playerLevel);
+    const unlockMsg = unlocked.length > 0 ? ` · Mở khóa: ${unlocked.join(', ')}` : '';
+    if (typeof showToast === 'function') {
+      showToast(`🎉 Thăng Cấp ${state.playerLevel}! +${bonusCoins} Xu${unlockMsg}`);
+    }
+  }
+
+  if (leveledUp) {
+    if (typeof SoundFX !== 'undefined' && SoundFX.levelUp) SoundFX.levelUp();
+    if (typeof selectedPlot !== 'undefined' && selectedPlot && typeof renderDrawer === 'function') {
+      renderDrawer();
+    }
+  }
+  if (typeof updateHUD === 'function') updateHUD();
+  return leveledUp;
+}
+
+function getMergedZoneInfo(room) {
+  if (!room) return { size: 1, rooms: [], isMerged: false, outputMult: 1, speedMult: 1, outputPct: 0, speedPct: 0 };
+  const visited = new Set();
+  const queue = [room];
+  const component = [];
+  visited.add(`${room.gx}_${room.gy}`);
+
+  while (queue.length > 0) {
+    const cur = queue.shift();
+    component.push(cur);
+    for (const nb of state.rooms) {
+      if (nb.type !== room.type) continue;
+      const k = `${nb.gx}_${nb.gy}`;
+      if (visited.has(k)) continue;
+      if (Math.abs(nb.gx - cur.gx) + Math.abs(nb.gy - cur.gy) === 1) {
+        visited.add(k);
+        queue.push(nb);
+      }
+    }
+  }
+
+  const size = component.length;
+  const extra = Math.min(5, Math.max(0, size - 1));
+  const outputPct = extra * 16;
+  const speedPct = extra * 10;
+  return {
+    size,
+    rooms: component,
+    isMerged: size >= 2,
+    outputMult: 1 + outputPct / 100,
+    speedMult: 1 + speedPct / 100,
+    outputPct,
+    speedPct
+  };
 }
 
 const RESOURCE_LABELS = {
@@ -351,6 +476,9 @@ function fulfillTicket(ticketId, isManualClick = false, skipResourceCost = false
 
   state.tickets.splice(idx, 1);
 
+  const ticketExp = t.vip ? 45 : (16 + t.amount * 8);
+  gainExp(ticketExp);
+
   if (typeof bumpStat === 'function') {
     bumpStat('pill-coins');
     bumpStat('pill-rep');
@@ -453,6 +581,7 @@ function resolveRoomHazard(gx, gy) {
   }
 
   if (typeof SoundFX !== 'undefined') SoundFX.upgrade();
+  gainExp(15);
   if (typeof updateHUD === 'function') updateHUD();
   if (typeof updateContractUI === 'function') updateContractUI();
   if (selectedPlot && selectedPlot.gx === gx && selectedPlot.gy === gy && typeof renderDrawer === 'function') {
@@ -463,6 +592,7 @@ function resolveRoomHazard(gx, gy) {
 
 function getRoomEffectiveMultipliers(room, bonuses = getGlobalBonuses()) {
   const synergy = getRoomSynergy(room);
+  const mergeInfo = getMergedZoneInfo(room);
   const phase = getCurrentDayPhase();
   const menu = getActiveMenuConfig();
 
@@ -486,9 +616,10 @@ function getRoomEffectiveMultipliers(room, bonuses = getGlobalBonuses()) {
   const rushRevMult = isServiceRoom ? phase.rushRevenueMult : 1;
 
   return {
-    speedMult: bonuses.speedMult * synergy.speedMult * phase.rushSpeedMult * menuSpeed * perkSpeed,
+    speedMult: bonuses.speedMult * synergy.speedMult * mergeInfo.speedMult * phase.rushSpeedMult * menuSpeed * perkSpeed,
     revenueMult: bonuses.revenueMult * synergy.revenueMult * rushRevMult * menuRev * viralMult,
     synergy,
+    mergeInfo,
     phase,
     menu
   };
@@ -496,12 +627,15 @@ function getRoomEffectiveMultipliers(room, bonuses = getGlobalBonuses()) {
 
 function getRoomCycleStats(room, level = room.level, staff = room.staff, bonuses = getGlobalBonuses()) {
   const cfg = GAME_CONFIG.rooms[room.type];
-  if (!cfg) return { cycleSec: 1, output: {} };
+  if (!cfg) return { cycleSec: 1, output: {}, expGain: 0 };
   const effBonuses = getRoomEffectiveMultipliers(room, bonuses);
-  const speed = (1 / cfg.cycleTime) * effBonuses.speedMult * (1 + (level - 1) * 0.14);
+  const speed = (1 / cfg.cycleTime) * effBonuses.speedMult * (1 + (level - 1) * 0.12);
   const cycleSec = 1 / Math.max(0.01, speed);
-  const output = cfg.produce(level, staff, 1, effBonuses);
-  return { cycleSec, output, synergy: effBonuses.synergy, phase: effBonuses.phase, menu: effBonuses.menu };
+  const tierMult = Math.pow(1.20, Math.floor(level / 5));
+  const totalOutMult = tierMult * effBonuses.mergeInfo.outputMult;
+  const output = cfg.produce(level, staff, totalOutMult, effBonuses);
+  const expGain = Math.max(2, Math.round((cfg.expPerCycle || 8) * (1 + (level - 1) * 0.18) * effBonuses.mergeInfo.outputMult));
+  return { cycleSec, output, expGain, synergy: effBonuses.synergy, mergeInfo: effBonuses.mergeInfo, phase: effBonuses.phase, menu: effBonuses.menu };
 }
 
 function getActiveContract() {

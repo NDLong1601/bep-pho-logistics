@@ -51,20 +51,153 @@ scene.add(fillLight);
 // Groups
 const groundGroup = new THREE.Group();
 const roomsGroup = new THREE.Group();
+const synergyLinesGroup = new THREE.Group();
 const effectsGroup = new THREE.Group();
-scene.add(groundGroup, roomsGroup, effectsGroup);
+scene.add(groundGroup, roomsGroup, synergyLinesGroup, effectsGroup);
 
 // Raycasting & Plot meshes
 const raycaster = new THREE.Raycaster();
 const pointerNDC = new THREE.Vector2();
 const plotHitMeshes = [];
 const plotOutlineMeshes = new Map();
-const roomMeshesMap = new Map(); // key -> { group, animHooks, agents }
+const roomMeshesMap = new Map(); // key -> { group, animHooks, agents, ... }
 const roomTagMap = new Map();    // key -> DOM element
 const activeFloaters = [];
 const steamPuffs = [];
+const synergyPulses = [];
+const popAnimMap = new Map();
 const sharedSteamGeo = new THREE.SphereGeometry(0.12, 8, 8);
 sharedSteamGeo.userData = { shared: true };
+
+const LIGHTING_PRESETS = {
+  morning: {
+    sunCol: new THREE.Color(0xFFF3DE), sunInt: 0.92, sunPos: new THREE.Vector3(16, 28, 12),
+    hemiSky: new THREE.Color(0xFFFBF2), hemiGnd: new THREE.Color(0xD2C3B2), hemiInt: 0.78,
+    fillCol: new THREE.Color(0xDCEBFF), fillInt: 0.28, roomLight: 0
+  },
+  lunch_rush: {
+    sunCol: new THREE.Color(0xFFF8E6), sunInt: 1.06, sunPos: new THREE.Vector3(10, 32, 8),
+    hemiSky: new THREE.Color(0xFFFDF7), hemiGnd: new THREE.Color(0xDACBB8), hemiInt: 0.85,
+    fillCol: new THREE.Color(0xE3F0FF), fillInt: 0.32, roomLight: 0
+  },
+  sunset: {
+    sunCol: new THREE.Color(0xFF9F5A), sunInt: 0.88, sunPos: new THREE.Vector3(-14, 18, 16),
+    hemiSky: new THREE.Color(0xFFD4AD), hemiGnd: new THREE.Color(0x9E7B64), hemiInt: 0.64,
+    fillCol: new THREE.Color(0x9BB5E8), fillInt: 0.30, roomLight: 0.65
+  },
+  night_rush: {
+    sunCol: new THREE.Color(0x7A98D6), sunInt: 0.38, sunPos: new THREE.Vector3(-16, 24, -12),
+    hemiSky: new THREE.Color(0x53668E), hemiGnd: new THREE.Color(0x362C2B), hemiInt: 0.48,
+    fillCol: new THREE.Color(0x6E8AC4), fillInt: 0.25, roomLight: 1.35
+  }
+};
+let currentRoomLightIntensity = 0;
+
+function triggerRoomPop(gx, gy) {
+  popAnimMap.set(`${gx}_${gy}`, { t: 0, duration: 0.36 });
+}
+
+function rebuildSynergyLines3D() {
+  while (synergyLinesGroup.children.length) {
+    const child = synergyLinesGroup.children[0];
+    disposeObject3D(child);
+    synergyLinesGroup.remove(child);
+  }
+  synergyPulses.length = 0;
+
+  if (!selectedPlot) return;
+  const selRoom = getRoomAt(selectedPlot.gx, selectedPlot.gy);
+  if (!selRoom) return;
+
+  const drawnPairs = new Set();
+  const connections = [];
+  const selSyn = getRoomSynergy(selRoom);
+
+  for (const link of selSyn.links) {
+    connections.push({
+      from: link.targetRoom,
+      to: selRoom,
+      color: link.revenuePct > 0 ? 0xD36C3D : 0x2F7D63
+    });
+  }
+
+  for (const other of state.rooms) {
+    if (other === selRoom) continue;
+    const otherSyn = getRoomSynergy(other);
+    for (const link of otherSyn.links) {
+      if (link.targetRoom === selRoom) {
+        connections.push({
+          from: selRoom,
+          to: other,
+          color: link.revenuePct > 0 ? 0xD36C3D : 0x2F7D63
+        });
+      }
+    }
+  }
+
+  connections.forEach((conn, idx) => {
+    const keyA = `${conn.from.gx}_${conn.from.gy}`;
+    const keyB = `${conn.to.gx}_${conn.to.gy}`;
+    const pairKey = [keyA, keyB].sort().join('|');
+    if (drawnPairs.has(pairKey)) return;
+    drawnPairs.add(pairKey);
+
+    const p0 = gridToWorld3D(conn.from.gx, conn.from.gy);
+    p0.y = 1.45;
+    const p2 = gridToWorld3D(conn.to.gx, conn.to.gy);
+    p2.y = 1.45;
+    const mid = p0.clone().lerp(p2, 0.5);
+    mid.y = 2.65;
+
+    const curve = new THREE.QuadraticBezierCurve3(p0, mid, p2);
+    const tubeGeo = new THREE.TubeGeometry(curve, 20, 0.045, 8, false);
+    const tubeMat = new THREE.MeshBasicMaterial({ color: conn.color, transparent: true, opacity: 0.72 });
+    synergyLinesGroup.add(new THREE.Mesh(tubeGeo, tubeMat));
+
+    for (let p = 0; p < 2; p++) {
+      const pulseGeo = new THREE.SphereGeometry(0.11, 10, 10);
+      const pulseMat = new THREE.MeshBasicMaterial({ color: 0xFFFDF5 });
+      const pulseMesh = new THREE.Mesh(pulseGeo, pulseMat);
+      synergyLinesGroup.add(pulseMesh);
+      synergyPulses.push({ mesh: pulseMesh, curve, offset: idx * 0.25 + p * 0.5, speed: 0.75 });
+    }
+  });
+}
+
+function updateDayNightLighting(dt) {
+  const phase = getCurrentDayPhase();
+  const preset = LIGHTING_PRESETS[phase.id] || LIGHTING_PRESETS.morning;
+  const k = Math.min(1, dt * 2.4);
+
+  sunLight.color.lerp(preset.sunCol, k);
+  sunLight.intensity += (preset.sunInt - sunLight.intensity) * k;
+  sunLight.position.lerp(preset.sunPos, k);
+
+  hemiLight.color.lerp(preset.hemiSky, k);
+  hemiLight.groundColor.lerp(preset.hemiGnd, k);
+  hemiLight.intensity += (preset.hemiInt - hemiLight.intensity) * k;
+
+  fillLight.color.lerp(preset.fillCol, k);
+  fillLight.intensity += (preset.fillInt - fillLight.intensity) * k;
+
+  currentRoomLightIntensity += (preset.roomLight - currentRoomLightIntensity) * k;
+  const lightVisible = currentRoomLightIntensity > 0.02;
+  const lanternGlow = Math.min(1, currentRoomLightIntensity / 1.1);
+
+  roomMeshesMap.forEach((entry) => {
+    if (entry.roomLight) {
+      entry.roomLight.intensity = currentRoomLightIntensity;
+      entry.roomLight.visible = lightVisible;
+    }
+    if (entry.lanternMat) {
+      entry.lanternMat.emissiveIntensity = 0.15 + lanternGlow * 0.85;
+    }
+  });
+
+  if (document.body.dataset.dayPhase !== phase.id) {
+    document.body.dataset.dayPhase = phase.id;
+  }
+}
 
 // Free GPU geometries and materials safely (preserving TextureCache & shared geometries)
 function disposeObject3D(root) {

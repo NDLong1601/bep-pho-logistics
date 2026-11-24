@@ -182,5 +182,44 @@ const GAME_CONFIG = {
     { id: 'c5', title: 'Chuỗi nhà hàng - giao nhận', desc: 'Sở hữu ít nhất 6 phân khu trên bản đồ', metric: 'roomCount', target: 6, reward: 650, rep: 12 },
     { id: 'c6', title: 'Bếp phố nổi tiếng', desc: 'Đạt 60 điểm Uy tín thương hiệu', metric: 'rep', target: 60, reward: 950, rep: 15 },
     { id: 'c7', title: 'Trung tâm ẩm thực khu vực', desc: 'Phục vụ tổng cộng 45 lượt khách / đơn', metric: 'totalServed', target: 45, reward: 1400, rep: 20 }
+  ],
+
+  synergies: {
+    kitchen: [
+      { withType: 'warehouse', speedPct: 0.20, revenuePct: 0, label: 'Sát Kho Nguyên Liệu (+20% tốc độ)' }
+    ],
+    dining: [
+      { withType: 'kitchen', speedPct: 0, revenuePct: 0.20, label: 'Sát Bếp Nấu (+20% doanh thu)' },
+      { withType: 'cafe', speedPct: 0, revenuePct: 0.20, label: 'Cạnh Quầy Cà Phê (+20% doanh thu)' }
+    ],
+    packing: [
+      { withType: 'kitchen', speedPct: 0.20, revenuePct: 0, label: 'Sát Bếp Nấu (+20% tốc độ)' }
+    ],
+    dispatch: [
+      { withType: 'packing', speedPct: 0.25, revenuePct: 0, label: 'Sát Trạm Đóng Gói (+25% tốc độ)' }
+    ],
+    cafe: [
+      { withType: 'dining', speedPct: 0, revenuePct: 0.20, label: 'Cạnh Phòng Ăn Bistro (+20% doanh thu)' }
+    ],
+    office: [
+      { withType: 'kitchen', speedPct: 0.15, revenuePct: 0.15, label: 'Sát Bếp Nấu (+15% hiệu suất)' },
+      { withType: 'packing', speedPct: 0.15, revenuePct: 0.15, label: 'Sát Trạm Đóng Gói (+15% hiệu suất)' },
+      { withType: 'dispatch', speedPct: 0.15, revenuePct: 0.15, label: 'Sát Bãi Xe Giao Nhận (+15% hiệu suất)' }
+    ]
+  },
+
+  dayPhases: [
+    { id: 'morning', start: 0, end: 18, label: '☀️ Buổi sáng', speedPct: 0, revenuePct: 0, isNight: false, isRush: false },
+    { id: 'lunch_rush', start: 18, end: 30, label: '🔥 Cao điểm Trưa', speedPct: 0.30, revenuePct: 0.20, isNight: false, isRush: true },
+    { id: 'sunset', start: 30, end: 37, label: '🌅 Hoàng hôn', speedPct: 0, revenuePct: 0, isNight: false, isRush: false },
+    { id: 'night_rush', start: 37, end: 45, label: '🌙 Đêm Phố Cổ', speedPct: 0, revenuePct: 0.25, isNight: true, isRush: true }
+  ],
+
+  expressTemplates: [
+    { title: 'Giao gấp cơm trưa văn phòng', resource: 'dishes', baseAmount: 4, baseReward: 170, rep: 3, timeLimit: 40 },
+    { title: 'Đơn tiệc trà chiều công ty', resource: 'dishes', baseAmount: 6, baseReward: 250, rep: 4, timeLimit: 42 },
+    { title: 'Chuyến giao nhanh giờ cao điểm', resource: 'parcels', baseAmount: 3, baseReward: 290, rep: 5, timeLimit: 38 },
+    { title: 'Cung ứng nhanh nguyên liệu sạch', resource: 'ingredients', baseAmount: 6, baseReward: 150, rep: 3, timeLimit: 36 },
+    { title: 'Đơn VIP khách sạn phố cổ', resource: 'parcels', baseAmount: 5, baseReward: 430, rep: 7, timeLimit: 45 }
   ]
 };

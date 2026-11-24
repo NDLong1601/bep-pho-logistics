@@ -12,7 +12,10 @@ function createInitialState() {
     dayTimer: 0,
     totalServed: 0,
     totalEarned: 650,
+    dailyEarned: 0,
     contractIdx: 0,
+    expressOrder: null,
+    expressCooldown: 4,
     rooms: [
       { gx: 1, gy: 1, type: 'warehouse', level: 1, staff: 1, progress: 0.25 },
       { gx: 2, gy: 1, type: 'kitchen', level: 1, staff: 2, progress: 0.55 },
@@ -28,6 +31,7 @@ let gameSpeed = 1;
 let selectedPlot = null;
 let hoveredPlot = null;
 let confirmDemolishKey = null;
+let relocateSource = null;
 
 function saveGame(showMsg = false) {
   try {
@@ -45,6 +49,9 @@ function loadGame() {
     const parsed = JSON.parse(raw);
     if (parsed && Array.isArray(parsed.rooms) && typeof parsed.coins === 'number') {
       state = Object.assign(createInitialState(), parsed);
+      if (typeof state.dailyEarned !== 'number') state.dailyEarned = 0;
+      if (typeof state.expressCooldown !== 'number') state.expressCooldown = 4;
+      if (state.expressOrder && typeof state.expressOrder.timeLeft !== 'number') state.expressOrder = null;
     }
   } catch (e) {}
 }
@@ -100,13 +107,136 @@ function getMissingInputInfo(room) {
   return null;
 }
 
+function getRoomSynergy(room, customGx, customGy, customType) {
+  const gx = customGx !== undefined ? customGx : room.gx;
+  const gy = customGy !== undefined ? customGy : room.gy;
+  const type = customType || room.type;
+  const rules = (GAME_CONFIG.synergies && GAME_CONFIG.synergies[type]) || [];
+
+  let speedPct = 0;
+  let revenuePct = 0;
+  const links = [];
+  const matchedTypes = new Set();
+
+  if (rules.length > 0) {
+    for (const neighbor of state.rooms) {
+      if (neighbor === room || (neighbor.gx === gx && neighbor.gy === gy)) continue;
+      if (Math.abs(neighbor.gx - gx) + Math.abs(neighbor.gy - gy) !== 1) continue;
+      const rule = rules.find(r => r.withType === neighbor.type);
+      if (!rule || matchedTypes.has(neighbor.type)) continue;
+      matchedTypes.add(neighbor.type);
+      speedPct += rule.speedPct || 0;
+      revenuePct += rule.revenuePct || 0;
+      links.push({ targetRoom: neighbor, label: rule.label, speedPct: rule.speedPct || 0, revenuePct: rule.revenuePct || 0 });
+    }
+  }
+
+  return {
+    speedMult: 1 + speedPct,
+    revenueMult: 1 + revenuePct,
+    speedPct: Math.round(speedPct * 100),
+    revenuePct: Math.round(revenuePct * 100),
+    links
+  };
+}
+
+function getCurrentDayPhase() {
+  const phases = GAME_CONFIG.dayPhases || [];
+  const t = state.dayTimer || 0;
+  const phase = phases.find(p => t >= p.start && t < p.end) || phases[phases.length - 1] || {
+    id: 'morning', start: 0, end: 45, label: '☀️ Buổi sáng', speedPct: 0, revenuePct: 0, isNight: false, isRush: false
+  };
+  return {
+    ...phase,
+    rushSpeedMult: 1 + (phase.speedPct || 0),
+    rushRevenueMult: 1 + (phase.revenuePct || 0)
+  };
+}
+
 function getRoomCycleStats(room, level = room.level, staff = room.staff, bonuses = getGlobalBonuses()) {
   const cfg = GAME_CONFIG.rooms[room.type];
   if (!cfg) return { cycleSec: 1, output: {} };
-  const speed = (1 / cfg.cycleTime) * bonuses.speedMult * (1 + (level - 1) * 0.14);
+  const synergy = getRoomSynergy(room);
+  const phase = getCurrentDayPhase();
+  const isServiceRoom = room.type === 'dining' || room.type === 'dispatch' || room.type === 'cafe';
+  const effBonuses = {
+    speedMult: bonuses.speedMult * synergy.speedMult * phase.rushSpeedMult,
+    revenueMult: bonuses.revenueMult * synergy.revenueMult * (isServiceRoom ? phase.rushRevenueMult : 1)
+  };
+  const speed = (1 / cfg.cycleTime) * effBonuses.speedMult * (1 + (level - 1) * 0.14);
   const cycleSec = 1 / Math.max(0.01, speed);
-  const output = cfg.produce(level, staff, 1, bonuses);
-  return { cycleSec, output };
+  const output = cfg.produce(level, staff, 1, effBonuses);
+  return { cycleSec, output, synergy, phase };
+}
+
+function getActiveContract() {
+  if (state.contractIdx < GAME_CONFIG.contracts.length) {
+    return GAME_CONFIG.contracts[state.contractIdx];
+  }
+  const extraIdx = state.contractIdx - GAME_CONFIG.contracts.length;
+  const tier = Math.floor(extraIdx / 3) + 1;
+  const kind = extraIdx % 3;
+  if (kind === 0) {
+    const target = 45 + tier * 25;
+    return {
+      id: `dyn_${state.contractIdx}`,
+      title: `Chiến dịch Phục vụ Bậc ${tier}`,
+      desc: `Phục vụ tổng cộng ${target.toLocaleString('vi-VN')} lượt khách / đơn`,
+      metric: 'totalServed',
+      target,
+      reward: 1350 + tier * 400,
+      rep: 16 + tier * 3
+    };
+  }
+  if (kind === 1) {
+    const target = 60 + tier * 30;
+    return {
+      id: `dyn_${state.contractIdx}`,
+      title: `Thương hiệu Vàng Bậc ${tier}`,
+      desc: `Đạt ${target.toLocaleString('vi-VN')} điểm Uy tín thương hiệu`,
+      metric: 'rep',
+      target,
+      reward: 1500 + tier * 450,
+      rep: 18 + tier * 4
+    };
+  }
+  const target = 5000 + tier * 3500;
+  return {
+    id: `dyn_${state.contractIdx}`,
+    title: `Mục tiêu Doanh thu Bậc ${tier}`,
+    desc: `Đạt tổng doanh thu ${target.toLocaleString('vi-VN')} Xu`,
+    metric: 'totalEarned',
+    target,
+    reward: 1650 + tier * 500,
+    rep: 20 + tier * 4
+  };
+}
+
+function generateExpressOrder() {
+  const templates = GAME_CONFIG.expressTemplates || [];
+  if (!templates.length) return null;
+  const ownedTypes = new Set(state.rooms.map(r => r.type));
+  const eligible = templates.filter((tpl) => {
+    if (tpl.resource === 'ingredients') return ownedTypes.has('warehouse');
+    if (tpl.resource === 'dishes') return ownedTypes.has('kitchen');
+    if (tpl.resource === 'parcels') return ownedTypes.has('packing');
+    return true;
+  });
+  const pool = eligible.length > 0 ? eligible : templates;
+  const tpl = pool[Math.floor(Math.random() * pool.length)];
+  const dayScale = 1 + Math.min(2, (state.day - 1) * 0.12);
+  const amount = Math.max(2, Math.round(tpl.baseAmount * dayScale));
+  const reward = Math.round(tpl.baseReward * (amount / tpl.baseAmount));
+  return {
+    title: tpl.title,
+    desc: `Giao gấp ${amount} ${RESOURCE_LABELS[tpl.resource] || tpl.resource}`,
+    resource: tpl.resource,
+    amount,
+    reward,
+    rep: tpl.rep,
+    timeLeft: tpl.timeLimit,
+    maxTime: tpl.timeLimit
+  };
 }
 
 function formatRoomOutput(output) {

@@ -33,14 +33,45 @@ function updateHUD() {
   updateRateBadge('rate-ingredients', rates.ingredients);
   updateRateBadge('rate-dishes', rates.dishes);
   updateRateBadge('rate-parcels', rates.parcels);
+
+  const phase = getCurrentDayPhase();
+  const phaseEl = document.getElementById('stat-day-phase');
+  if (phaseEl) {
+    phaseEl.textContent = phase.label;
+    phaseEl.className = phase.isRush
+      ? 'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-orange-500/20 text-orange-900 border border-orange-500/30'
+      : (phase.id === 'sunset'
+        ? 'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-amber-500/20 text-amber-900'
+        : 'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-stone-500/12 text-stone-700');
+  }
 }
 
 function getContractMetricValue(metric) {
   return metric === 'roomCount' ? state.rooms.length : (state[metric] || 0);
 }
 
+function updateExpressOrderUI() {
+  const box = document.getElementById('express-box');
+  if (!box) return;
+  const o = state.expressOrder;
+  if (!o) {
+    box.classList.add('hidden');
+    return;
+  }
+  box.classList.remove('hidden');
+  const have = state[o.resource] || 0;
+  const resLabel = RESOURCE_LABELS[o.resource] || o.resource;
+  document.getElementById('express-timer').textContent = `${Math.max(0, Math.ceil(o.timeLeft))}s`;
+  document.getElementById('express-title').textContent = o.title;
+  document.getElementById('express-desc').textContent = `Giao ${o.amount} ${resLabel} (Có ${have}/${o.amount})`;
+  document.getElementById('express-reward').textContent = `+${o.reward} Xu · +${o.rep}★`;
+  const pct = Math.max(0, Math.min(100, Math.round((o.timeLeft / o.maxTime) * 100)));
+  document.getElementById('express-bar').style.width = `${pct}%`;
+  document.getElementById('btn-claim-express').disabled = have < o.amount;
+}
+
 function updateContractUI() {
-  const c = GAME_CONFIG.contracts[state.contractIdx];
+  const c = getActiveContract();
   if (!c) {
     document.getElementById('contract-title').textContent = 'Khu phức hợp thịnh vượng';
     document.getElementById('contract-desc').textContent = 'Bạn đã hoàn thành toàn bộ đơn hàng khởi đầu. Tự do mở rộng theo ý thích!';
@@ -48,6 +79,7 @@ function updateContractUI() {
     document.getElementById('contract-bar').style.width = '100%';
     document.getElementById('contract-progress').textContent = '✓';
     document.getElementById('btn-claim-contract').classList.add('hidden');
+    updateExpressOrderUI();
     return;
   }
   const cur = getContractMetricValue(c.metric);
@@ -58,19 +90,23 @@ function updateContractUI() {
   document.getElementById('contract-bar').style.width = `${pct}%`;
   document.getElementById('contract-progress').textContent = `${Math.min(cur, c.target)}/${c.target}`;
   document.getElementById('btn-claim-contract').classList.toggle('hidden', cur < c.target);
+  updateExpressOrderUI();
 }
 
 function openInspector(gx, gy) {
   selectedPlot = { gx, gy };
   confirmDemolishKey = null;
   updatePlotHighlights();
+  rebuildSynergyLines3D();
   renderDrawer();
 }
 
 function closeInspector() {
   selectedPlot = null;
   confirmDemolishKey = null;
+  relocateSource = null;
   updatePlotHighlights();
+  rebuildSynergyLines3D();
   document.getElementById('inspector-drawer').classList.add('hidden');
 }
 
@@ -108,6 +144,10 @@ function renderDrawer() {
     let html = `<p class="text-xs text-stone-500">Chọn một bộ phận nhà hàng hoặc logistics để mở rộng trên ô đất này:</p><div class="space-y-2.5">`;
     for (const cfg of Object.values(GAME_CONFIG.rooms)) {
       const canAfford = state.coins >= cfg.cost;
+      const syn = getRoomSynergy(null, gx, gy, cfg.id);
+      const synBadge = syn.links.length > 0
+        ? `<div class="text-[10.5px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200/70 rounded-xl px-2 py-1">✨ Liên kết tại ô này: ${syn.links.map(l => l.label).join(' · ')}</div>`
+        : '';
       html += `
         <div class="bg-white/90 border border-stone-200/80 rounded-2xl p-3 flex flex-col gap-2">
           <div class="flex items-start justify-between gap-2">
@@ -121,6 +161,7 @@ function renderDrawer() {
             <span class="text-xs font-bold ${canAfford ? 'text-amber-800' : 'text-stone-400'}">${cfg.cost} Xu</span>
           </div>
           <p class="text-[11px] text-stone-600 leading-snug">${cfg.desc}</p>
+          ${synBadge}
           <div class="flex items-center justify-between pt-1.5 border-t border-stone-100">
             <span class="text-[11px] font-semibold text-emerald-700">${cfg.effectText}</span>
             <button data-build="${cfg.id}" class="btn-primary px-3 py-1 rounded-xl text-xs font-bold" ${canAfford ? '' : 'disabled'}>Xây ngay</button>
@@ -167,6 +208,26 @@ function renderDrawer() {
       ? `Hiện có ${room.staff} người: ${formatRoomOutput(curStats.output)} → ${formatRoomOutput(nextStaffStats.output)} (+1 nhân sự 3D)`
       : 'Đã đủ nhân sự';
 
+    const synLinks = curStats.synergy ? curStats.synergy.links : [];
+    const synRules = (GAME_CONFIG.synergies && GAME_CONFIG.synergies[room.type]) || [];
+    let synergyHtml = '';
+    if (synLinks.length > 0) {
+      synergyHtml = `
+        <div class="bg-orange-50/90 border border-orange-200/80 rounded-2xl p-3 space-y-1">
+          <div class="text-[10.5px] font-bold text-amber-900 uppercase tracking-wide">⚡ Liên kết liền kề đang bật</div>
+          ${synLinks.map(l => `<div class="text-[11.5px] font-semibold text-emerald-800">• ${l.label}</div>`).join('')}
+        </div>
+      `;
+    } else if (synRules.length > 0) {
+      const hints = synRules.map(r => GAME_CONFIG.rooms[r.withType]?.name).filter(Boolean);
+      synergyHtml = `
+        <div class="bg-stone-50 border border-stone-200/70 rounded-2xl p-2.5 text-[11px] text-stone-600">
+          💡 <strong class="text-stone-800">Mẹo vị trí:</strong> Đặt cạnh <strong>${hints.join(' hoặc ')}</strong> để nhận thưởng liền kề.
+        </div>
+      `;
+    }
+    const isRelocating = relocateSource && relocateSource.gx === gx && relocateSource.gy === gy;
+
     document.getElementById('drawer-icon').textContent = cfg.icon;
     document.getElementById('drawer-title').textContent = `${cfg.name} · Lv.${room.level}`;
     document.getElementById('drawer-subtitle').textContent = `${cfg.category} · ${room.staff}/${GAME_CONFIG.MAX_STAFF_PER_ROOM} nhân sự`;
@@ -195,6 +256,8 @@ function renderDrawer() {
         </button>
       </div>
 
+      ${synergyHtml}
+
       <div class="space-y-2">
         <div class="bg-white/90 border border-stone-200/80 rounded-2xl p-3 flex items-center justify-between gap-2">
           <div class="min-w-0">
@@ -217,6 +280,10 @@ function renderDrawer() {
         </div>
       </div>
 
+      <button id="btn-relocate-room" class="btn-ghost w-full py-2 rounded-xl text-xs font-bold ${isRelocating ? 'active' : ''}">
+        ${isRelocating ? '❌ Hủy chọn ô đích (Nhấn lên bản đồ)' : '🔄 Di dời / Đổi vị trí (Miễn phí)'}
+      </button>
+
       <div class="pt-2 border-t border-stone-200/80 flex items-center justify-between">
         <span class="text-[11px] text-stone-500">Hoàn lại ${refund} Xu khi tháo dỡ</span>
         <button id="btn-demolish-room" class="px-3 py-1.5 rounded-xl text-xs font-semibold ${confirmDemolishKey === key ? 'bg-red-600 text-white' : 'bg-red-50 text-red-700 border border-red-200 hover:bg-red-100'}">
@@ -235,10 +302,23 @@ function renderDrawer() {
       updateSelectedRoomProgressOnly(room);
     });
 
+    document.getElementById('btn-relocate-room').addEventListener('click', () => {
+      SoundFX.click();
+      if (relocateSource && relocateSource.gx === gx && relocateSource.gy === gy) {
+        relocateSource = null;
+      } else {
+        relocateSource = { gx, gy };
+        showToast('Chọn một ô đất bất kỳ trên bản đồ để di dời hoặc đổi chỗ!');
+      }
+      updatePlotHighlights();
+      renderDrawer();
+    });
+
     document.getElementById('btn-upgrade-room').addEventListener('click', () => {
       if (room.level >= GAME_CONFIG.MAX_LEVEL || state.coins < upCost) return;
       state.coins -= upCost;
       room.level += 1;
+      triggerRoomPop(room.gx, room.gy);
       rebuildRooms3D();
       SoundFX.upgrade();
       spawnFloater(room.gx, room.gy, `Lên Lv.${room.level}`, '#B85524');
@@ -274,6 +354,7 @@ function renderDrawer() {
       state.coins += refund;
       state.rooms = state.rooms.filter(r => !(r.gx === gx && r.gy === gy));
       confirmDemolishKey = null;
+      relocateSource = null;
       rebuildRooms3D();
       SoundFX.click();
       showToast(`Đã tháo dỡ ${cfg.name} (+${refund} Xu)`);
@@ -290,6 +371,7 @@ function buildRoom(gx, gy, typeId) {
   if (!cfg || getRoomAt(gx, gy) || state.coins < cfg.cost) return;
   state.coins -= cfg.cost;
   state.rooms.push({ gx, gy, type: typeId, level: 1, staff: 1, progress: 0 });
+  triggerRoomPop(gx, gy);
   rebuildRooms3D();
   SoundFX.build();
   spawnFloater(gx, gy, `Khai trương ${cfg.name}`, '#266E56');

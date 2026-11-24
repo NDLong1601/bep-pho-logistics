@@ -102,6 +102,40 @@ canvas.addEventListener('pointermove', (e) => {
   }
 });
 
+function relocateRoomTo(srcGx, srcGy, dstGx, dstGy) {
+  const srcRoom = getRoomAt(srcGx, srcGy);
+  if (!srcRoom) {
+    relocateSource = null;
+    updatePlotHighlights();
+    return;
+  }
+  if (srcGx === dstGx && srcGy === dstGy) {
+    relocateSource = null;
+    updatePlotHighlights();
+    renderDrawer();
+    showToast('Đã hủy di dời phân khu.');
+    return;
+  }
+  const dstRoom = getRoomAt(dstGx, dstGy);
+  srcRoom.gx = dstGx;
+  srcRoom.gy = dstGy;
+  triggerRoomPop(dstGx, dstGy);
+  if (dstRoom) {
+    dstRoom.gx = srcGx;
+    dstRoom.gy = srcGy;
+    triggerRoomPop(srcGx, srcGy);
+  }
+  relocateSource = null;
+  selectedPlot = { gx: dstGx, gy: dstGy };
+  rebuildRooms3D();
+  SoundFX.build();
+  const cfg = GAME_CONFIG.rooms[srcRoom.type];
+  showToast(dstRoom ? `Đã đổi chỗ ${cfg.name}!` : `Đã di dời ${cfg.name}!`);
+  updateHUD();
+  renderDrawer();
+  saveGame(false);
+}
+
 function handlePointerEnd(e) {
   const wasSingleTap = e.type === 'pointerup' && dragState.active && !dragState.moved && activePointers.size === 1;
   activePointers.delete(e.pointerId);
@@ -112,6 +146,16 @@ function handlePointerEnd(e) {
     canvas.classList.remove('dragging');
     if (wasSingleTap) {
       const plot = pickPlot(e.clientX, e.clientY);
+      if (relocateSource) {
+        if (plot) {
+          SoundFX.click();
+          relocateRoomTo(relocateSource.gx, relocateSource.gy, plot.gx, plot.gy);
+        } else {
+          relocateSource = null;
+          closeInspector();
+        }
+        return;
+      }
       if (plot) {
         SoundFX.click();
         openInspector(plot.gx, plot.gy);
@@ -176,14 +220,34 @@ document.getElementById('btn-cam-reset').addEventListener('click', () => { Sound
 document.getElementById('btn-close-drawer').addEventListener('click', closeInspector);
 
 document.getElementById('btn-claim-contract').addEventListener('click', () => {
-  const c = GAME_CONFIG.contracts[state.contractIdx];
+  const c = getActiveContract();
   if (!c || getContractMetricValue(c.metric) < c.target) return;
   state.coins += c.reward;
   state.totalEarned += c.reward;
+  state.dailyEarned = (state.dailyEarned || 0) + c.reward;
   state.rep += c.rep;
   state.contractIdx += 1;
   SoundFX.reward();
   showToast(`Hoàn thành đơn hàng! +${c.reward} Xu & +${c.rep} Uy tín`);
+  updateHUD();
+  updateContractUI();
+  if (selectedPlot) renderDrawer();
+  saveGame(false);
+});
+
+document.getElementById('btn-claim-express').addEventListener('click', () => {
+  const o = state.expressOrder;
+  if (!o || (state[o.resource] || 0) < o.amount) return;
+  state[o.resource] -= o.amount;
+  state.coins += o.reward;
+  state.totalEarned += o.reward;
+  state.dailyEarned = (state.dailyEarned || 0) + o.reward;
+  state.rep += o.rep;
+  state.totalServed += 1;
+  state.expressOrder = null;
+  state.expressCooldown = 14;
+  SoundFX.reward();
+  showToast(`⚡ Hoàn thành đơn khẩn cấp! +${o.reward} Xu & +${o.rep} Uy tín`);
   updateHUD();
   updateContractUI();
   if (selectedPlot) renderDrawer();
@@ -256,10 +320,14 @@ document.getElementById('btn-confirm-import').addEventListener('click', () => {
     const parsed = JSON.parse(document.getElementById('import-textarea').value.trim());
     if (!parsed || !Array.isArray(parsed.rooms)) throw new Error('invalid');
     state = Object.assign(createInitialState(), parsed);
+    if (typeof state.dailyEarned !== 'number') state.dailyEarned = 0;
+    if (typeof state.expressCooldown !== 'number') state.expressCooldown = 4;
+    if (state.expressOrder && typeof state.expressOrder.timeLeft !== 'number') state.expressOrder = null;
+    lastDayPhaseId = null;
+    closeInspector();
     rebuildRooms3D();
     updateHUD();
     updateContractUI();
-    closeInspector();
     saveGame(false);
     showToast('Đã khôi phục dữ liệu thành công!');
     document.getElementById('import-area').classList.add('hidden');
@@ -282,10 +350,11 @@ document.getElementById('btn-reset-game').addEventListener('click', (e) => {
   resetArmed = false;
   e.target.textContent = 'Chơi lại từ đầu';
   state = createInitialState();
+  lastDayPhaseId = null;
+  closeInspector();
   rebuildRooms3D();
   updateHUD();
   updateContractUI();
-  closeInspector();
   resetCamera();
   saveGame(false);
   modal.classList.add('hidden');

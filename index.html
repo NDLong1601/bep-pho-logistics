@@ -23,7 +23,10 @@
           </div>
           <div class="leading-tight hidden sm:block">
             <div class="font-bold text-[13.5px] tracking-tight text-stone-900">Bếp Phố Logistics</div>
-            <div class="text-[11px] font-medium text-stone-500">Ngày <span id="stat-day">1</span> · <span id="stat-rooms">3/16</span> phân khu</div>
+            <div class="text-[11px] font-medium text-stone-500 flex items-center gap-1.5">
+              <span>Ngày <span id="stat-day">1</span> · <span id="stat-rooms">3/16</span> phân khu</span>
+              <span id="stat-day-phase" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-amber-500/15 text-amber-900">☀️ Buổi sáng</span>
+            </div>
           </div>
         </div>
 
@@ -75,6 +78,23 @@
 
     <!-- BOTTOM-LEFT COZY CONTRACT CARD -->
     <aside id="contract-panel" class="fixed bottom-4 left-3.5 z-20 w-72 max-w-[calc(100vw-28px)] hud-glass rounded-2xl p-3.5 pointer-events-auto">
+      <div id="express-box" class="hidden mb-3 pb-3 border-b border-stone-900/10">
+        <div class="flex items-center justify-between gap-2 mb-1">
+          <span class="text-[10px] font-bold uppercase tracking-wider text-rose-700">⚡ Đơn Khẩn Cấp</span>
+          <span id="express-timer" class="text-[10.5px] font-bold tabular-nums text-rose-700 bg-rose-500/10 border border-rose-500/20 px-1.5 py-0.5 rounded-full">40s</span>
+        </div>
+        <div id="express-title" class="text-xs font-bold text-stone-900 leading-snug">Giao gấp</div>
+        <div class="flex items-center justify-between gap-2 mt-0.5">
+          <span id="express-desc" class="text-[11px] text-stone-500">Giao gấp 4 Món</span>
+          <span id="express-reward" class="text-[11px] font-bold text-emerald-700">+170 Xu</span>
+        </div>
+        <div class="mt-1.5 h-1 bg-stone-900/10 rounded-full overflow-hidden">
+          <div id="express-bar" class="h-full bg-gradient-to-r from-rose-500 to-amber-500 rounded-full transition-all duration-200" style="width: 100%"></div>
+        </div>
+        <button id="btn-claim-express" class="btn-primary w-full mt-2 py-1.5 rounded-xl text-[11.5px] font-bold">
+          Giao ngay
+        </button>
+      </div>
       <div class="flex items-center justify-between mb-1.5">
         <span class="text-[10.5px] font-bold uppercase tracking-wider text-amber-800/80">Đơn hàng nhẹ nhàng</span>
         <span id="contract-reward" class="text-[11px] font-bold text-emerald-800 bg-emerald-500/12 border border-emerald-600/20 px-2 py-0.5 rounded-full">

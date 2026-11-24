@@ -72,6 +72,22 @@ function buildRoomShell(room, cfg) {
   interior.position.y = floorH + 0.03;
   group.add(interior);
 
+  // Warm interior pendant lantern & PointLight for sunset/night cycle
+  const lanternMat = new THREE.MeshStandardMaterial({
+    color: 0xFFF3D6,
+    emissive: 0xFF9F43,
+    emissiveIntensity: 0.15,
+    roughness: 0.35
+  });
+  const lantern = new THREE.Mesh(new THREE.SphereGeometry(0.11, 10, 10), lanternMat);
+  lantern.position.set(0, floorH + 1.98, 0);
+  group.add(lantern);
+
+  const roomLight = new THREE.PointLight(0xFF9E44, 0, 5.5, 2);
+  roomLight.position.set(0, floorH + 1.85, 0);
+  roomLight.visible = false;
+  group.add(roomLight);
+
   const animHooks = [];
   const builder = ROOM_BUILDERS[room.type];
   if (builder) builder(interior, room, animHooks);
@@ -83,7 +99,7 @@ function buildRoomShell(room, cfg) {
     if (child.userData && child.userData.wallSide === 'NZ') wallPropsNZ.push(child);
   });
 
-  return { group, interior, animHooks, wallNX, wallNZ, windowNX, wallPropsNX, wallPropsNZ };
+  return { group, interior, animHooks, wallNX, wallNZ, windowNX, wallPropsNX, wallPropsNZ, roomLight, lanternMat };
 }
 
 const ROOM_BUILDERS = {
@@ -120,6 +136,26 @@ const ROOM_BUILDERS = {
     }
     if (room.level >= 3) {
       addBox(g, 0.72, 0.55, 0.55, -1.25, 0.28, 0.95, 0x64A36F);
+      // Yellow Pallet Jack (xe nâng tay)
+      const jack = new THREE.Group();
+      jack.position.set(-0.15, 0, 0.88);
+      addBox(jack, 0.14, 0.06, 0.72, -0.14, 0.06, -0.1, 0xE5A93B, { metalness: 0.3 });
+      addBox(jack, 0.14, 0.06, 0.72, 0.14, 0.06, -0.1, 0xE5A93B, { metalness: 0.3 });
+      addBox(jack, 0.42, 0.22, 0.22, 0, 0.14, 0.32, 0xD69128, { metalness: 0.3 });
+      addCyl(jack, 0.03, 0.03, 0.78, 0, 0.56, 0.36, 0x3D434A);
+      addBox(jack, 0.28, 0.05, 0.06, 0, 0.95, 0.36, 0x2F353B);
+      g.add(jack);
+    }
+    if (room.level >= 4) {
+      // Second compact cold produce bin rack along -X
+      addBox(g, 0.58, 0.95, 0.92, -1.42, 0.48, -0.12, 0xDCE5EC, { roughness: 0.35, metalness: 0.25 });
+      addBox(g, 0.44, 0.22, 0.34, -1.38, 1.06, -0.32, 0x5B9A68);
+      addBox(g, 0.44, 0.22, 0.34, -1.38, 1.06, 0.12, 0xE2924E);
+    }
+    if (room.level >= 5) {
+      // Smart warehouse status beacon & extra top crate
+      addBox(g, 0.75, 0.09, 0.16, -1.32, 1.77, -1.06, 0x3BD69F, { emissive: 0x2F7D63, emissiveIntensity: 0.7 });
+      addBox(g, 0.46, 0.30, 0.38, 0.55, 1.70, -1.48, 0xE6BA67);
     }
   },
 
@@ -132,8 +168,8 @@ const ROOM_BUILDERS = {
     [-0.55, 0.15, 0.85].forEach((bx, idx) => {
       addCyl(g, 0.18, 0.18, 0.03, bx, 0.80, -1.42, 0x2F353B);
       addCyl(g, 0.12, 0.12, 0.04, bx, 0.81, -1.42, 0xEE6A2E, { emissive: 0xEE5A22, emissiveIntensity: 0.65 });
-      if (idx < 2) {
-        addCyl(g, 0.17, 0.16, 0.24, bx, 0.94, -1.42, idx === 0 ? 0xC5CED6 : 0xD17643, { metalness: 0.45, roughness: 0.3 });
+      if (idx < 2 || room.level >= 4) {
+        addCyl(g, 0.17, 0.16, 0.24, bx, 0.94, -1.42, idx === 0 ? 0xC5CED6 : (idx === 1 ? 0xD17643 : 0xD8A852), { metalness: 0.45, roughness: 0.3 });
       }
     });
 
@@ -155,6 +191,27 @@ const ROOM_BUILDERS = {
       // Side prep counter along left wall
       addBox(g, 0.66, 0.72, 1.45, -1.45, 0.36, 0.42, 0xDCE3EA, { metalness: 0.25 });
     }
+    if (room.level >= 3) {
+      // 2-tier Convection Oven with glowing glass doors
+      addBox(g, 0.72, 1.24, 0.76, -1.42, 0.62, -0.78, 0xC5D0DA, { metalness: 0.4, roughness: 0.3 });
+      addBox(g, 0.05, 0.36, 0.56, -1.05, 0.88, -0.78, 0xFF8C3B, { emissive: 0xFF6A1A, emissiveIntensity: 0.65 });
+      addBox(g, 0.05, 0.36, 0.56, -1.05, 0.42, -0.78, 0xFF8C3B, { emissive: 0xFF6A1A, emissiveIntensity: 0.55 });
+    }
+    if (room.level >= 4) {
+      // Overhead copper pot rack above prep island
+      addBox(g, 1.35, 0.05, 0.52, 0.05, 1.82, 0.35, 0x4A3A30, { metalness: 0.5 });
+      [-0.35, 0.05, 0.42].forEach((px, idx) => {
+        addCyl(g, 0.13, 0.13, 0.04, px, 1.66, 0.35, idx % 2 === 0 ? 0xD17643 : 0xC5CED6, { metalness: 0.5 });
+      });
+    }
+    if (room.level >= 5) {
+      // Golden heat lamps over prep island + extra plated bowl
+      [-0.38, 0.42].forEach((lx) => {
+        addCyl(g, 0.03, 0.03, 0.42, lx, 1.56, 0.35, 0xB88B44);
+        addCyl(g, 0.06, 0.15, 0.14, lx, 1.32, 0.35, 0xE0AE53, { emissive: 0xFFB84D, emissiveIntensity: 0.55, metalness: 0.5 });
+      });
+      addCyl(g, 0.15, 0.11, 0.08, -0.05, 0.78, 0.48, 0xFFFDF8);
+    }
     addPlant(g, 1.55, -1.48, 0.85);
   },
 
@@ -172,6 +229,7 @@ const ROOM_BUILDERS = {
     // Cozy Dining Tables + Chairs
     const tables = [[-0.85, 0.62], [0.85, 0.68]];
     if (room.level >= 2) tables.push([1.15, -0.38]);
+    if (room.level >= 4) tables.push([-0.85, -0.38]);
 
     tables.forEach(([tx, tz]) => {
       addBox(g, 0.88, 0.07, 0.88, tx, 0.56, tz, 0xC68E5A, { roughness: 0.58 });
@@ -179,9 +237,27 @@ const ROOM_BUILDERS = {
       // Warm ceramic bowls on table
       addCyl(g, 0.11, 0.08, 0.06, tx - 0.16, 0.62, tz + 0.08, 0xFAF6F0);
       addCyl(g, 0.11, 0.08, 0.06, tx + 0.16, 0.62, tz - 0.10, 0xFAF6F0);
+      if (room.level >= 4) {
+        addCyl(g, 0.07, 0.09, 0.12, tx, 0.66, tz, 0xFFE3A3, { emissive: 0xFFAF45, emissiveIntensity: 0.6 });
+      }
       addChair(g, tx - 0.56, tz, Math.PI / 2, 0x8F5E3A);
       addChair(g, tx + 0.56, tz, -Math.PI / 2, 0x8F5E3A);
     });
+
+    if (room.level >= 3) {
+      // Classic wooden wine/tea display cabinet along -X wall
+      addBox(g, 0.42, 1.48, 1.15, -1.56, 0.74, -0.25, 0x7A4B2E, { roughness: 0.6 });
+      [0.52, 0.96].forEach((sy) => {
+        [-0.3, 0, 0.3].forEach((bz, bi) => {
+          addCyl(g, 0.05, 0.05, 0.22, -1.52, sy + 0.12, -0.25 + bz, bi % 2 === 0 ? 0x3D8B6E : 0xC86234);
+        });
+      });
+    }
+    if (room.level >= 5) {
+      // Golden Bistro Star Plaque & reception flowers
+      addBox(g, 0.34, 0.24, 0.08, 0.55, 1.02, -1.30, 0xE6B34C, { emissive: 0xD98A2B, emissiveIntensity: 0.35, metalness: 0.4 });
+      addPlant(g, 0.08, 1.45, 0.8);
+    }
 
     addPlant(g, -1.52, -1.48, 0.95);
     addPlant(g, 1.58, 1.52, 0.85);
@@ -201,9 +277,11 @@ const ROOM_BUILDERS = {
     // Animated moving parcels on conveyor
     const parcel1 = addBox(g, 0.42, 0.34, 0.40, -0.8, 0.76, -0.35, 0xD69D5E);
     const parcel2 = addBox(g, 0.38, 0.30, 0.36, 0.4, 0.74, -0.35, 0xC88F52);
+    const parcel3 = room.level >= 5 ? addBox(g, 0.36, 0.32, 0.36, 0.0, 0.75, -0.35, 0xE2AE6E) : null;
     animHooks.push((t) => {
       parcel1.position.x = -1.1 + ((t * 0.42) % 2.2);
       parcel2.position.x = -1.1 + (((t * 0.42) + 1.1) % 2.2);
+      if (parcel3) parcel3.position.x = -1.1 + (((t * 0.42) + 1.65) % 2.2);
     });
 
     // Dispatch computer workstation
@@ -216,6 +294,24 @@ const ROOM_BUILDERS = {
     addBox(g, 0.42, 0.36, 0.42, 1.15, 0.58, 0.95, 0xDFAC71);
     if (room.level >= 2) {
       addBox(g, 0.44, 0.38, 0.44, 0.62, 0.19, 1.05, 0xC68C4E);
+    }
+    if (room.level >= 3) {
+      // Automated barcode scanner arch over conveyor
+      addBox(g, 0.12, 0.88, 0.08, 0.15, 0.96, -0.72, 0x3D4854, { metalness: 0.5 });
+      addBox(g, 0.12, 0.88, 0.08, 0.15, 0.96, 0.02, 0x3D4854, { metalness: 0.5 });
+      addBox(g, 0.18, 0.10, 0.84, 0.15, 1.38, -0.35, 0x4E5C6B, { metalness: 0.5 });
+      addBox(g, 0.06, 0.04, 0.62, 0.15, 1.31, -0.35, 0x4CE3FF, { emissive: 0x35C2E8, emissiveIntensity: 0.85 });
+    }
+    if (room.level >= 4) {
+      // Thermal bag prep bench along -X wall
+      addBox(g, 0.56, 0.64, 1.15, -1.48, 0.32, 0.12, 0xB8C2CC, { metalness: 0.25 });
+      addBox(g, 0.38, 0.32, 0.38, -1.48, 0.80, -0.15, 0xD15540);
+      addBox(g, 0.38, 0.32, 0.38, -1.48, 0.80, 0.35, 0x2B8080);
+    }
+    if (room.level >= 5) {
+      // Green logistics status tower light
+      addCyl(g, 0.04, 0.06, 0.95, 1.42, 0.48, -0.35, 0x46525E);
+      addCyl(g, 0.08, 0.08, 0.16, 1.42, 1.02, -0.35, 0x44D688, { emissive: 0x2F9E62, emissiveIntensity: 0.85 });
     }
   },
 
@@ -233,6 +329,12 @@ const ROOM_BUILDERS = {
     addBox(g, 0.40, 0.32, 0.40, -1.42, 0.78, -0.55, 0xD69D5E);
     addBox(g, 0.38, 0.30, 0.38, -1.42, 0.77, 0.05, 0xE2B27A);
 
+    if (room.level >= 2) {
+      // EV Charging / Fuel station pillar
+      addBox(g, 0.28, 1.15, 0.26, 1.48, 0.58, -1.25, 0x3C4856, { metalness: 0.4 });
+      addBox(g, 0.18, 0.28, 0.05, 1.48, 0.88, -1.11, 0x49D48A, { emissive: 0x2F9E62, emissiveIntensity: 0.75 });
+    }
+
     // Cute 3D Mini Delivery Van (smoothly departs & returns!)
     const van = new THREE.Group();
     van.position.set(0.45, 0, 0.35);
@@ -246,6 +348,10 @@ const ROOM_BUILDERS = {
     // Headlights
     addBox(van, 0.16, 0.10, 0.05, -0.28, 0.34, 0.99, 0xFFF2B2, { emissive: 0xFFE382, emissiveIntensity: 0.7 });
     addBox(van, 0.16, 0.10, 0.05, 0.28, 0.34, 0.99, 0xFFF2B2, { emissive: 0xFFE382, emissiveIntensity: 0.7 });
+    if (room.level >= 4) {
+      // Illuminated express roof sign
+      addBox(van, 0.52, 0.16, 0.28, 0, 0.88, 0.62, 0xFFE382, { emissive: 0xFFB84D, emissiveIntensity: 0.65 });
+    }
     // Wheels
     [[-0.46, 0.58], [0.46, 0.58], [-0.46, -0.45], [0.46, -0.45]].forEach(([wx, wz]) => {
       const w = addCyl(van, 0.18, 0.18, 0.12, wx, 0.18, wz, 0x2F3236);
@@ -253,9 +359,37 @@ const ROOM_BUILDERS = {
     });
     g.add(van);
 
+    let scooter = null;
+    if (room.level >= 3) {
+      // 3D Delivery Scooter with orange insulated box
+      scooter = new THREE.Group();
+      scooter.position.set(-0.68, 0, 0.55);
+      addBox(scooter, 0.26, 0.22, 0.66, 0, 0.32, 0, 0x2F7D63);
+      addBox(scooter, 0.36, 0.34, 0.38, 0, 0.58, -0.22, 0xE67E45);
+      addBox(scooter, 0.08, 0.36, 0.08, 0, 0.52, 0.26, 0x3D434A);
+      addBox(scooter, 0.32, 0.05, 0.06, 0, 0.72, 0.26, 0x3D434A);
+      [0.24, -0.24].forEach((wz) => {
+        const sw = addCyl(scooter, 0.13, 0.13, 0.08, 0, 0.13, wz, 0x25282C);
+        sw.rotation.z = Math.PI / 2;
+      });
+      g.add(scooter);
+    }
+
+    if (room.level >= 5) {
+      // Express logistics gantry arch over exit bay
+      addBox(g, 0.12, 1.55, 0.12, -1.25, 0.78, 1.68, 0x495664, { metalness: 0.4 });
+      addBox(g, 0.12, 1.55, 0.12, 1.35, 0.78, 1.68, 0x495664, { metalness: 0.4 });
+      addBox(g, 2.75, 0.18, 0.18, 0.05, 1.58, 1.68, 0xD65A42);
+      addBox(g, 0.85, 0.08, 0.20, 0.05, 1.58, 1.68, 0xFFE382, { emissive: 0xFFB84D, emissiveIntensity: 0.7 });
+    }
+
     animHooks.push((t) => {
       const wave = Math.sin(t * 0.9 + room.gx);
       van.position.z = 0.35 + (wave > 0.65 ? (wave - 0.65) * 2.2 : 0);
+      if (scooter) {
+        const sWave = Math.sin(t * 1.25 + room.gy + 1.8);
+        scooter.position.z = 0.55 + (sWave > 0.55 ? (sWave - 0.55) * 2.1 : 0);
+      }
     });
   },
 
@@ -271,13 +405,37 @@ const ROOM_BUILDERS = {
     addCyl(g, 0.10, 0.10, 0.08, 0.42, 0.95, -1.20, 0xE69A58);
     addCyl(g, 0.10, 0.10, 0.08, 0.68, 0.95, -1.20, 0xD96D7A);
 
+    if (room.level >= 2) {
+      // Cold brew glass tower & grinder
+      addCyl(g, 0.09, 0.11, 0.42, 1.08, 1.10, -1.22, 0x6E4730, { roughness: 0.25 });
+      addCyl(g, 0.08, 0.08, 0.16, 1.08, 1.38, -1.22, 0xD5ECF7, { transparent: true, opacity: 0.5 });
+    }
+
     // Cafe round tables + stools
-    [[-0.82, 0.68], [0.85, 0.68]].forEach(([tx, tz]) => {
+    const cafeTables = [[-0.82, 0.68], [0.85, 0.68]];
+    if (room.level >= 3) cafeTables.push([0.0, 1.18]);
+    cafeTables.forEach(([tx, tz]) => {
       addCyl(g, 0.42, 0.42, 0.06, tx, 0.58, tz, 0xDDB282);
       addCyl(g, 0.05, 0.08, 0.56, tx, 0.28, tz, 0x4A3A30);
       addChair(g, tx - 0.52, tz, Math.PI / 2, 0xC48A5A);
       addChair(g, tx + 0.52, tz, -Math.PI / 2, 0xC48A5A);
     });
+
+    if (room.level >= 4) {
+      // Warm neon coffee sign on back-right wall
+      const neonBack = addBox(g, 0.95, 0.55, 0.05, 0.15, 1.52, -1.86, 0x332822);
+      const neonGlow = addBox(g, 0.72, 0.34, 0.03, 0.15, 1.52, -1.82, 0xFFD08A, { emissive: 0xFF9F43, emissiveIntensity: 0.85 });
+      neonBack.userData.wallSide = 'NZ';
+      neonGlow.userData.wallSide = 'NZ';
+    }
+    if (room.level >= 5) {
+      // Tiered cake stand & warm pendant bar lights
+      addCyl(g, 0.18, 0.20, 0.04, 0.55, 1.32, -1.20, 0xFFFDF8);
+      addCyl(g, 0.12, 0.14, 0.06, 0.55, 1.37, -1.20, 0xE67E45);
+      [-0.45, 0.15, 0.75].forEach((lx) => {
+        addCyl(g, 0.08, 0.12, 0.12, lx, 1.72, -1.22, 0xFFE3A3, { emissive: 0xFFAF45, emissiveIntensity: 0.7 });
+      });
+    }
     addPlant(g, 1.55, -1.45, 0.9);
   },
 
@@ -302,6 +460,31 @@ const ROOM_BUILDERS = {
     addBox(g, 0.44, 0.28, 0.04, -0.25, 0.88, 0.12, 0x2B333B, { rotY: 0.12 });
     addBox(g, 0.44, 0.28, 0.04, 0.22, 0.88, 0.12, 0x2B333B, { rotY: -0.12 });
     addChair(g, -0.05, -0.42, 0, 0x3A4652);
+
+    if (room.level >= 2) {
+      // Filing cabinet & printer station
+      addBox(g, 0.62, 0.88, 0.56, -1.42, 0.44, 1.05, 0xB8C2CC, { metalness: 0.25 });
+      addBox(g, 0.42, 0.24, 0.38, -1.42, 1.00, 1.05, 0x46525E);
+    }
+    if (room.level >= 3) {
+      // Glass round meeting table + 2 chairs
+      addCyl(g, 0.48, 0.48, 0.05, 1.15, 0.56, 0.62, 0xBCE0F2, { transparent: true, opacity: 0.65, roughness: 0.1 });
+      addCyl(g, 0.05, 0.08, 0.54, 1.15, 0.27, 0.62, 0x4A3A30);
+      addChair(g, 1.15, 1.12, Math.PI, 0x4A6E8F);
+      addChair(g, 1.15, 0.12, 0, 0x4A6E8F);
+    }
+    if (room.level >= 4) {
+      // Logistics Server Rack with glowing cyan LEDs
+      addBox(g, 0.54, 1.48, 0.54, -1.46, 0.74, -1.05, 0x2B333B, { metalness: 0.5, roughness: 0.35 });
+      [0.45, 0.78, 1.12].forEach((ly) => {
+        addBox(g, 0.04, 0.06, 0.34, -1.18, ly, -1.05, 0x4CE3FF, { emissive: 0x35C2E8, emissiveIntensity: 0.8 });
+      });
+    }
+    if (room.level >= 5) {
+      // 3rd command monitor & Golden Trophy award
+      addBox(g, 0.40, 0.26, 0.04, -0.02, 1.16, 0.10, 0x65B2D4, { emissive: 0x3B8AB0, emissiveIntensity: 0.55 });
+      addCyl(g, 0.09, 0.06, 0.22, 0.58, 0.84, 0.22, 0xF2C04B, { emissive: 0xC98D1E, emissiveIntensity: 0.3, metalness: 0.7 });
+    }
 
     addPlant(g, -1.48, -1.48, 0.95);
     addPlant(g, 1.55, 1.35, 0.8);
@@ -348,6 +531,9 @@ function rebuildRooms3D() {
     }
 
     const key = `${room.gx}_${room.gy}`;
+    if (popAnimMap.has(key)) {
+      built.group.scale.set(0.15, 0.15, 0.15);
+    }
     roomMeshesMap.set(key, {
       room,
       group: built.group,
@@ -358,6 +544,8 @@ function rebuildRooms3D() {
       windowNX: built.windowNX,
       wallPropsNX: built.wallPropsNX,
       wallPropsNZ: built.wallPropsNZ,
+      roomLight: built.roomLight,
+      lanternMat: built.lanternMat,
       agents: roomAgents
     });
 
@@ -368,6 +556,7 @@ function rebuildRooms3D() {
       <div class="room-tag-row">
         <span>${cfg.icon}</span>
         <span class="room-tag-lv">Lv.${room.level}</span>
+        <span class="room-tag-syn hidden" title="Thưởng vị trí liền kề"></span>
         <span class="room-tag-up hidden" title="Đủ Xu nâng cấp">↑</span>
       </div>
       <div class="room-tag-warn hidden"></div>
@@ -377,6 +566,7 @@ function rebuildRooms3D() {
     roomTagMap.set(key, tag);
   }
   updatePlotHighlights();
+  rebuildSynergyLines3D();
 }
 
 function updatePlotHighlights() {
@@ -385,6 +575,24 @@ function updatePlotHighlights() {
     const occupied = !!getRoomAt(gx, gy);
     const isSel = selectedPlot && selectedPlot.gx === gx && selectedPlot.gy === gy;
     const isHov = hoveredPlot && hoveredPlot.gx === gx && hoveredPlot.gy === gy;
+    const isRelocSrc = relocateSource && relocateSource.gx === gx && relocateSource.gy === gy;
+
+    if (relocateSource) {
+      if (isRelocSrc) {
+        tile.material.color.setHex(0xF5D9C4);
+        border.material.color.setHex(0xC86234);
+        border.material.opacity = 1;
+      } else if (isHov) {
+        tile.material.color.setHex(0xCFECE0);
+        border.material.color.setHex(0x2F7D63);
+        border.material.opacity = 1;
+      } else {
+        tile.material.color.setHex(0xE8F5EF);
+        border.material.color.setHex(0x2F7D63);
+        border.material.opacity = 0.72;
+      }
+      return;
+    }
 
     if (isSel) {
       tile.material.color.setHex(0xF5D9C4);

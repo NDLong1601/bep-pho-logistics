@@ -26,18 +26,79 @@ function updateCutawayWalls() {
   });
 }
 
+let lastDayPhaseId = null;
+
 function updateSimulation(dt, timeSec) {
   updateCutawayWalls();
+  updateDayNightLighting(dt);
+
+  // Animate synergy pulse spheres along 3D supply arcs
+  for (const p of synergyPulses) {
+    const u = (timeSec * p.speed + p.offset) % 1;
+    p.curve.getPointAt(u, p.mesh.position);
+  }
+
+  // Animate spring pop-in on newly built / upgraded / relocated rooms
+  popAnimMap.forEach((anim, key) => {
+    anim.t += dt;
+    const progress = Math.min(1, anim.t / anim.duration);
+    const entry = roomMeshesMap.get(key);
+    if (entry && entry.group) {
+      if (progress >= 1) {
+        entry.group.scale.set(1, 1, 1);
+      } else {
+        const s = 1 - Math.pow(1 - progress, 3) * Math.cos(progress * Math.PI * 2.2) * 0.85;
+        entry.group.scale.set(s, s, s);
+      }
+    }
+    if (progress >= 1) popAnimMap.delete(key);
+  });
+
   if (isPaused) return;
   const effDt = dt * gameSpeed;
   const bonuses = getGlobalBonuses();
   let starvedChanged = false;
 
+  const prevPhase = getCurrentDayPhase();
   state.dayTimer += effDt;
   if (state.dayTimer >= 45) {
     state.dayTimer -= 45;
+    const finishedDay = state.day;
     state.day += 1;
+    if (state.dailyEarned > 0) {
+      showToast(`Tổng kết Ngày ${finishedDay}: +${state.dailyEarned.toLocaleString('vi-VN')} Xu`);
+    }
+    state.dailyEarned = 0;
     updateHUD();
+  }
+
+  const phase = getCurrentDayPhase();
+  if (lastDayPhaseId !== phase.id) {
+    lastDayPhaseId = phase.id;
+    updateHUD();
+    if (phase.id === 'lunch_rush') showToast('🔥 Giờ Cao Điểm Trưa: +30% tốc độ & +20% doanh thu!');
+    else if (phase.id === 'night_rush') showToast('🌙 Đêm Phố Cổ lên đèn: +25% doanh thu quán!');
+  } else if (prevPhase.id !== phase.id) {
+    updateHUD();
+  }
+
+  // Express order countdown / generation
+  if (state.expressOrder) {
+    state.expressOrder.timeLeft -= effDt;
+    if (state.expressOrder.timeLeft <= 0) {
+      state.expressOrder = null;
+      state.expressCooldown = 10;
+      showToast('Đơn hàng khẩn cấp đã hết thời gian!');
+    }
+    updateExpressOrderUI();
+  } else {
+    state.expressCooldown -= effDt;
+    if (state.expressCooldown <= 0) {
+      state.expressOrder = generateExpressOrder();
+      state.expressCooldown = 12;
+      updateExpressOrderUI();
+      if (state.expressOrder) showToast(`⚡ Đơn khẩn cấp mới: ${state.expressOrder.title}`);
+    }
   }
 
   for (const room of state.rooms) {
@@ -51,7 +112,8 @@ function updateSimulation(dt, timeSec) {
     if (!missing) {
       room.starved = false;
       room.missingLabel = '';
-      const speed = (1 / cfg.cycleTime) * bonuses.speedMult * (1 + (room.level - 1) * 0.14);
+      const synergy = getRoomSynergy(room);
+      const speed = (1 / cfg.cycleTime) * bonuses.speedMult * synergy.speedMult * phase.rushSpeedMult * (1 + (room.level - 1) * 0.14);
       room.progress += effDt * speed;
       if (room.progress >= 1) {
         room.progress -= 1;
@@ -149,20 +211,35 @@ function completeRoomCycle(room, bonuses) {
     }
   }
 
-  const out = cfg.produce(room.level, room.staff, 1, bonuses);
+  const synergy = getRoomSynergy(room);
+  const phase = getCurrentDayPhase();
+  const isServiceRoom = room.type === 'dining' || room.type === 'dispatch' || room.type === 'cafe';
+  const effBonuses = {
+    speedMult: bonuses.speedMult * synergy.speedMult * phase.rushSpeedMult,
+    revenueMult: bonuses.revenueMult * synergy.revenueMult * (isServiceRoom ? phase.rushRevenueMult : 1)
+  };
+
+  const out = cfg.produce(room.level, room.staff, 1, effBonuses);
   const msgs = [];
   if (out.ingredients) { state.ingredients += out.ingredients; msgs.push(`+${out.ingredients} Kho`); bumpStat('pill-ingredients'); }
   if (out.dishes) { state.dishes += out.dishes; msgs.push(`+${out.dishes} Món`); bumpStat('pill-dishes'); }
   if (out.parcels) { state.parcels += out.parcels; msgs.push(`+${out.parcels} Đơn`); bumpStat('pill-parcels'); }
-  if (out.coins) { state.coins += out.coins; state.totalEarned += out.coins; msgs.push(`+${out.coins} Xu`); bumpStat('pill-coins'); }
+  if (out.coins) {
+    state.coins += out.coins;
+    state.totalEarned += out.coins;
+    state.dailyEarned = (state.dailyEarned || 0) + out.coins;
+    msgs.push(`+${out.coins} Xu`);
+    bumpStat('pill-coins');
+  }
   if (out.rep) { state.rep += out.rep; bumpStat('pill-rep'); }
   if (out.served) state.totalServed += out.served;
 
   if (msgs.length) spawnFloater(room.gx, room.gy, msgs[0], out.coins ? '#B85524' : '#266E56');
   updateHUD();
   updateContractUI();
-  if (selectedPlot && selectedPlot.gx === room.gx && selectedPlot.gy === room.gy) {
-    updateSelectedRoomProgressOnly(room);
+  if (selectedPlot) {
+    const selRoom = getRoomAt(selectedPlot.gx, selectedPlot.gy);
+    if (selRoom) updateSelectedRoomProgressOnly(selRoom);
   }
 }
 
@@ -203,6 +280,18 @@ function syncOverlays() {
       tag.dataset.canUp = String(canUpgrade);
       const upEl = tag.querySelector('.room-tag-up');
       if (upEl) upEl.classList.toggle('hidden', !canUpgrade);
+    }
+
+    const syn = getRoomSynergy(entry.room);
+    const synPct = syn.speedPct + syn.revenuePct;
+    const synText = syn.links.length > 0 ? `⚡+${synPct}%` : '';
+    if (tag.dataset.syn !== synText) {
+      tag.dataset.syn = synText;
+      const synEl = tag.querySelector('.room-tag-syn');
+      if (synEl) {
+        synEl.textContent = synText;
+        synEl.classList.toggle('hidden', !synText);
+      }
     }
   });
 

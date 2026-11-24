@@ -1,0 +1,19 @@
+{
+  "name": "Bếp Phố Logistics — Quản Lý Nhà Hàng & Giao Nhận 3D",
+  "short_name": "Bếp Phố 3D",
+  "description": "Game mô phỏng quản lý nhà hàng ẩm thực Việt Nam kết hợp logistics 3D Isometric.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#ECE6DE",
+  "theme_color": "#C86234",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'%3E%3Crect width='128' height='128' rx='28' fill='%23C86234'/%3E%3Cpath d='M24 64h80M34 64a30 30 0 0 0 60 0M48 100h32M64 88v12M48 44c0-7 5-10 5-16M64 44c0-7 5-10 5-16M80 44c0-7 5-10 5-16' fill='none' stroke='%23FFFDF9' stroke-width='7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

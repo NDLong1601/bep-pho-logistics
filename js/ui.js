@@ -17,7 +17,8 @@ function updateRateBadge(id, rate) {
 }
 
 function updateHUD() {
-  const maxPlots = GAME_CONFIG.GRID_COLS * GAME_CONFIG.GRID_ROWS;
+  const gridSize = getGridSize();
+  const maxPlots = gridSize * gridSize;
   document.getElementById('stat-coins').textContent = state.coins.toLocaleString('vi-VN');
   document.getElementById('stat-ingredients').textContent = state.ingredients;
   document.getElementById('stat-dishes').textContent = state.dishes;
@@ -33,6 +34,23 @@ function updateHUD() {
   updateRateBadge('rate-ingredients', rates.ingredients);
   updateRateBadge('rate-dishes', rates.dishes);
   updateRateBadge('rate-parcels', rates.parcels);
+
+  const menu = getActiveMenuConfig();
+  const menuIconEl = document.getElementById('menu-icon');
+  const menuLabelEl = document.getElementById('menu-label');
+  if (menuIconEl) menuIconEl.textContent = menu.icon;
+  if (menuLabelEl) menuLabelEl.textContent = menu.name;
+
+  const nextTier = getNextGridTier();
+  const expandLabelEl = document.getElementById('expand-label');
+  const expandBtn = document.getElementById('btn-expand-grid');
+  if (expandLabelEl) {
+    expandLabelEl.textContent = nextTier ? `Mở ${nextTier.size}×${nextTier.size}` : `${gridSize}×${gridSize} Max`;
+  }
+  if (expandBtn && nextTier) {
+    const canExpand = state.coins >= nextTier.cost && state.rep >= nextTier.minRep;
+    expandBtn.classList.toggle('border-emerald-500/60', canExpand);
+  }
 
   const phase = getCurrentDayPhase();
   const phaseEl = document.getElementById('stat-day-phase');
@@ -227,6 +245,13 @@ function renderDrawer() {
       `;
     }
     const isRelocating = relocateSource && relocateSource.gx === gx && relocateSource.gy === gy;
+    const activeMenu = getActiveMenuConfig();
+    const menuHtml = (room.type === 'kitchen' || room.type === 'dining' || room.type === 'packing' || room.type === 'dispatch' || room.type === 'drone_hub')
+      ? `<div class="bg-amber-50/70 border border-amber-200/70 rounded-2xl p-2.5 flex items-center justify-between gap-2">
+           <span class="text-[11px] text-amber-900">Thực đơn: <strong>${activeMenu.icon} ${activeMenu.name}</strong></span>
+           <button id="btn-drawer-menu" class="btn-ghost px-2 py-1 rounded-lg text-[10.5px] font-bold">Đổi</button>
+         </div>`
+      : '';
 
     document.getElementById('drawer-icon').textContent = cfg.icon;
     document.getElementById('drawer-title').textContent = `${cfg.name} · Lv.${room.level}`;
@@ -257,6 +282,7 @@ function renderDrawer() {
       </div>
 
       ${synergyHtml}
+      ${menuHtml}
 
       <div class="space-y-2">
         <div class="bg-white/90 border border-stone-200/80 rounded-2xl p-3 flex items-center justify-between gap-2">
@@ -301,6 +327,13 @@ function renderDrawer() {
       }
       updateSelectedRoomProgressOnly(room);
     });
+
+    const drawerMenuBtn = document.getElementById('btn-drawer-menu');
+    if (drawerMenuBtn) {
+      drawerMenuBtn.addEventListener('click', () => {
+        if (typeof openSystemModal === 'function') openSystemModal('tab-expansion');
+      });
+    }
 
     document.getElementById('btn-relocate-room').addEventListener('click', () => {
       SoundFX.click();
@@ -380,4 +413,92 @@ function buildRoom(gx, gy, typeId) {
   updateContractUI();
   renderDrawer();
   saveGame(false);
+}
+
+function renderExpansionPanel() {
+  const gridCard = document.getElementById('expansion-grid-card');
+  const menuList = document.getElementById('expansion-menu-list');
+  if (!gridCard || !menuList) return;
+
+  const curSize = getGridSize();
+  const nextTier = getNextGridTier();
+  if (!nextTier) {
+    gridCard.innerHTML = `
+      <div class="flex items-center justify-between">
+        <div>
+          <div class="font-bold text-stone-900">Quỹ đất hiện tại: ${curSize}×${curSize} (${curSize * curSize} ô)</div>
+          <div class="text-[11px] text-emerald-700 mt-0.5">Đã mở rộng tối đa diện tích khu phức hợp!</div>
+        </div>
+        <span class="px-2.5 py-1 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold">Tối đa</span>
+      </div>
+    `;
+  } else {
+    const hasCoins = state.coins >= nextTier.cost;
+    const hasRep = state.rep >= nextTier.minRep;
+    gridCard.innerHTML = `
+      <div class="flex items-center justify-between gap-3">
+        <div>
+          <div class="font-bold text-stone-900">Mở rộng Quỹ đất: ${curSize}×${curSize} → ${nextTier.label}</div>
+          <div class="text-[11px] text-stone-500 mt-0.5">Yêu cầu: <strong class="${hasCoins ? 'text-amber-800' : 'text-red-600'}">${nextTier.cost.toLocaleString('vi-VN')} Xu</strong> & <strong class="${hasRep ? 'text-emerald-700' : 'text-red-600'}">${nextTier.minRep} Uy tín</strong></div>
+        </div>
+        <button id="btn-do-expand-grid" class="btn-primary px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap" ${(hasCoins && hasRep) ? '' : 'disabled'}>
+          Mở rộng ngay
+        </button>
+      </div>
+    `;
+    const expandActionBtn = document.getElementById('btn-do-expand-grid');
+    if (expandActionBtn) {
+      expandActionBtn.addEventListener('click', () => {
+        if (state.coins < nextTier.cost || state.rep < nextTier.minRep) return;
+        state.coins -= nextTier.cost;
+        state.gridSize = nextTier.size;
+        buildGroundGrid();
+        rebuildRooms3D();
+        resetCamera();
+        SoundFX.build();
+        showToast(`🗺️ Đã mở rộng khu đất lên ${nextTier.label}!`);
+        updateHUD();
+        updateContractUI();
+        renderExpansionPanel();
+        saveGame(false);
+      });
+    }
+  }
+
+  const activeId = getActiveMenuConfig().id;
+  menuList.innerHTML = Object.values(GAME_CONFIG.menus || {}).map((m) => {
+    const unlocked = state.rep >= m.unlockRep;
+    const isActive = m.id === activeId;
+    return `
+      <div class="bg-white border ${isActive ? 'border-amber-600 ring-1 ring-amber-500/30' : 'border-stone-200/80'} rounded-2xl p-3 flex flex-col justify-between gap-2">
+        <div>
+          <div class="flex items-center justify-between gap-2">
+            <span class="font-bold text-stone-900">${m.icon} ${m.name}</span>
+            <span class="text-[10.5px] font-semibold px-2 py-0.5 rounded-full ${unlocked ? 'bg-emerald-50 text-emerald-700' : 'bg-stone-100 text-stone-500'}">
+              ${unlocked ? (isActive ? 'Đang phục vụ' : 'Đã mở khóa') : `Cần ${m.unlockRep}★`}
+            </span>
+          </div>
+          <p class="text-[11px] text-stone-500 mt-1 leading-snug">${m.desc}</p>
+        </div>
+        <button data-select-menu="${m.id}" class="${isActive ? 'btn-ghost active' : 'btn-primary'} w-full py-1.5 rounded-xl text-[11px] font-bold" ${(!unlocked || isActive) ? 'disabled' : ''}>
+          ${isActive ? '✓ Đang áp dụng' : (unlocked ? 'Chọn thực đơn này' : `Mở khóa ở ${m.unlockRep} Uy tín`)}
+        </button>
+      </div>
+    `;
+  }).join('');
+
+  menuList.querySelectorAll('[data-select-menu]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const menuId = btn.getAttribute('data-select-menu');
+      const cfg = GAME_CONFIG.menus[menuId];
+      if (!cfg || state.rep < cfg.unlockRep) return;
+      state.activeMenu = menuId;
+      SoundFX.upgrade();
+      showToast(`${cfg.icon} Đã chuyển thực đơn sang ${cfg.name}!`);
+      updateHUD();
+      renderExpansionPanel();
+      if (selectedPlot) renderDrawer();
+      saveGame(false);
+    });
+  });
 }

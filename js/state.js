@@ -16,6 +16,9 @@ function createInitialState() {
     contractIdx: 0,
     expressOrder: null,
     expressCooldown: 4,
+    gridSize: 4,
+    activeMenu: 'pho_bo',
+    lastSavedAt: Date.now(),
     rooms: [
       { gx: 1, gy: 1, type: 'warehouse', level: 1, staff: 1, progress: 0.25 },
       { gx: 2, gy: 1, type: 'kitchen', level: 1, staff: 2, progress: 0.55 },
@@ -32,9 +35,12 @@ let selectedPlot = null;
 let hoveredPlot = null;
 let confirmDemolishKey = null;
 let relocateSource = null;
+let pendingOfflineCoins = 0;
+let pendingOfflineSec = 0;
 
 function saveGame(showMsg = false) {
   try {
+    state.lastSavedAt = Date.now();
     localStorage.setItem(GAME_CONFIG.SAVE_KEY, JSON.stringify(state));
     if (showMsg) showToast('Đã lưu tiến trình vào trình duyệt!');
   } catch (e) {
@@ -52,8 +58,46 @@ function loadGame() {
       if (typeof state.dailyEarned !== 'number') state.dailyEarned = 0;
       if (typeof state.expressCooldown !== 'number') state.expressCooldown = 4;
       if (state.expressOrder && typeof state.expressOrder.timeLeft !== 'number') state.expressOrder = null;
+      if (typeof state.gridSize !== 'number' || state.gridSize < 4 || state.gridSize > 6) state.gridSize = 4;
+      if (!GAME_CONFIG.menus || !GAME_CONFIG.menus[state.activeMenu]) state.activeMenu = 'pho_bo';
+
+      if (typeof parsed.lastSavedAt === 'number') {
+        const elapsedSec = Math.floor((Date.now() - parsed.lastSavedAt) / 1000);
+        if (elapsedSec >= 30 && state.rooms.length > 0) {
+          const cappedSec = Math.min(elapsedSec, 4 * 3600);
+          const rates = getNetResourceRates();
+          const maxOfflineCap = Math.max(1500, state.rooms.length * 800);
+          const earned = Math.min(maxOfflineCap, Math.round(Math.max(0, rates.coins) * 0.05 * cappedSec));
+          if (earned > 0) {
+            state.coins += earned;
+            state.totalEarned += earned;
+            state.dailyEarned = (state.dailyEarned || 0) + earned;
+            pendingOfflineCoins = earned;
+            pendingOfflineSec = cappedSec;
+          }
+        }
+      }
+      state.lastSavedAt = Date.now();
     }
   } catch (e) {}
+}
+
+function getGridSize() {
+  return state.gridSize || GAME_CONFIG.GRID_COLS || 4;
+}
+
+function getNextGridTier() {
+  const cur = getGridSize();
+  const tiers = GAME_CONFIG.gridTiers || [];
+  return tiers.find(t => t.size > cur) || null;
+}
+
+function getActiveMenuConfig() {
+  const menus = GAME_CONFIG.menus || {};
+  return menus[state.activeMenu] || Object.values(menus)[0] || {
+    id: 'pho_bo', name: 'Phở Bò Gia Truyền', icon: '🍜', unlockRep: 0,
+    kitchenSpeed: 1, packingSpeed: 1, diningRev: 1, dispatchRev: 1
+  };
 }
 
 function getRoomAt(gx, gy) {
@@ -153,20 +197,39 @@ function getCurrentDayPhase() {
   };
 }
 
+function getRoomEffectiveMultipliers(room, bonuses = getGlobalBonuses()) {
+  const synergy = getRoomSynergy(room);
+  const phase = getCurrentDayPhase();
+  const menu = getActiveMenuConfig();
+
+  let menuSpeed = 1;
+  if (room.type === 'kitchen') menuSpeed = menu.kitchenSpeed || 1;
+  else if (room.type === 'packing') menuSpeed = menu.packingSpeed || 1;
+
+  let menuRev = 1;
+  if (room.type === 'dining') menuRev = menu.diningRev || 1;
+  else if (room.type === 'dispatch' || room.type === 'drone_hub') menuRev = menu.dispatchRev || 1;
+
+  const isServiceRoom = room.type === 'dining' || room.type === 'dispatch' || room.type === 'drone_hub' || room.type === 'cafe';
+  const rushRevMult = isServiceRoom ? phase.rushRevenueMult : 1;
+
+  return {
+    speedMult: bonuses.speedMult * synergy.speedMult * phase.rushSpeedMult * menuSpeed,
+    revenueMult: bonuses.revenueMult * synergy.revenueMult * rushRevMult * menuRev,
+    synergy,
+    phase,
+    menu
+  };
+}
+
 function getRoomCycleStats(room, level = room.level, staff = room.staff, bonuses = getGlobalBonuses()) {
   const cfg = GAME_CONFIG.rooms[room.type];
   if (!cfg) return { cycleSec: 1, output: {} };
-  const synergy = getRoomSynergy(room);
-  const phase = getCurrentDayPhase();
-  const isServiceRoom = room.type === 'dining' || room.type === 'dispatch' || room.type === 'cafe';
-  const effBonuses = {
-    speedMult: bonuses.speedMult * synergy.speedMult * phase.rushSpeedMult,
-    revenueMult: bonuses.revenueMult * synergy.revenueMult * (isServiceRoom ? phase.rushRevenueMult : 1)
-  };
+  const effBonuses = getRoomEffectiveMultipliers(room, bonuses);
   const speed = (1 / cfg.cycleTime) * effBonuses.speedMult * (1 + (level - 1) * 0.14);
   const cycleSec = 1 / Math.max(0.01, speed);
   const output = cfg.produce(level, staff, 1, effBonuses);
-  return { cycleSec, output, synergy, phase };
+  return { cycleSec, output, synergy: effBonuses.synergy, phase: effBonuses.phase, menu: effBonuses.menu };
 }
 
 function getActiveContract() {

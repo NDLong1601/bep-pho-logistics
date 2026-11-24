@@ -229,3 +229,16 @@
       to { opacity: 1; transform: translateY(0); }
     }
     .toast-anim { animation: slideUp 0.22s ease-out forwards; }
+
+    @media (max-width: 639px) {
+      #inspector-drawer {
+        top: auto;
+        left: 0.65rem;
+        right: 0.65rem;
+        bottom: 0.65rem;
+        width: auto;
+        max-width: none;
+        max-height: 52vh;
+        border-radius: 1.25rem;
+      }
+    }

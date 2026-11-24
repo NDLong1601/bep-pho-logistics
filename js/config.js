@@ -171,6 +171,79 @@ const GAME_CONFIG = {
         coins: Math.round((25 + lv * 12) * staff * mult),
         rep: 1
       })
+    },
+    cold_storage: {
+      id: 'cold_storage',
+      name: 'Kho Lạnh Bảo Quản',
+      icon: '❄️',
+      category: 'Logistics',
+      cost: 460,
+      upgradeBase: 300,
+      staffCost: 190,
+      cycleTime: 4.8,
+      desc: 'Hệ thống cấp đông giữ tươi thực phẩm và sơ chế sẵn, đồng thời tăng +8% tốc độ & doanh thu.',
+      effectText: '+2 Kho & +1 Món · +8% tốc độ & doanh thu',
+      floorStyle: 'slate',
+      floorTint: '#CFE0EA',
+      wallColor: '#EDF4F7',
+      trimColor: '#5B7C92',
+      staffColor: '#3E84A8',
+      glassFront: true,
+      starter: false,
+      passiveBonus: { speedPct: 0.08, revenuePct: 0.08 },
+      produce: (lv, staff, mult) => ({
+        ingredients: Math.round((1.5 + lv * 0.6) * (1 + (staff - 1) * 0.35) * mult),
+        dishes: Math.round((1 + lv * 0.35) * (1 + (staff - 1) * 0.25) * mult)
+      })
+    },
+    marketing: {
+      id: 'marketing',
+      name: 'Phòng Marketing & App',
+      icon: '📱',
+      category: 'Quản trị',
+      cost: 580,
+      upgradeBase: 380,
+      staffCost: 230,
+      cycleTime: 5.8,
+      desc: 'Studio chụp món, livestream và chạy ưu đãi App: tăng +18% doanh thu toàn khu.',
+      effectText: '+2 Uy tín & +18% doanh thu toàn chuỗi',
+      floorStyle: 'wood_light',
+      floorTint: '#E9D6C3',
+      wallColor: '#F7EFE6',
+      trimColor: '#8B5A3C',
+      staffColor: '#B84B6E',
+      glassFront: true,
+      starter: false,
+      passiveBonus: { revenuePct: 0.18 },
+      produce: (lv, staff, mult, bonuses) => ({
+        coins: Math.round((36 + lv * 16) * (1 + (staff - 1) * 0.35) * mult * bonuses.revenueMult),
+        rep: 2
+      })
+    },
+    drone_hub: {
+      id: 'drone_hub',
+      name: 'Trạm Drone Giao Nhanh',
+      icon: '🚁',
+      category: 'Logistics',
+      cost: 780,
+      upgradeBase: 480,
+      staffCost: 280,
+      cycleTime: 5.0,
+      desc: 'Đội bay Drone tự động giao 2 đơn siêu tốc xuyên thành phố với lợi nhuận vượt trội.',
+      effectText: '2 Đơn → +270 Xu & +3 Uy tín',
+      floorStyle: 'asphalt',
+      floorTint: '#B9C0C7',
+      wallColor: '#E4E9EE',
+      trimColor: '#465666',
+      staffColor: '#2B6E8C',
+      glassFront: false,
+      starter: false,
+      requires: { parcels: 2 },
+      produce: (lv, staff, mult, bonuses) => ({
+        coins: Math.round((230 + lv * 75) * (1 + (staff - 1) * 0.42) * mult * bonuses.revenueMult),
+        rep: 3,
+        served: 2
+      })
     }
   },
 
@@ -185,28 +258,102 @@ const GAME_CONFIG = {
   ],
 
   synergies: {
+    warehouse: [
+      { withType: 'cold_storage', speedPct: 0.20, revenuePct: 0, label: 'Sát Kho Lạnh (+20% tốc độ)' }
+    ],
     kitchen: [
-      { withType: 'warehouse', speedPct: 0.20, revenuePct: 0, label: 'Sát Kho Nguyên Liệu (+20% tốc độ)' }
+      { withType: 'warehouse', speedPct: 0.20, revenuePct: 0, label: 'Sát Kho Nguyên Liệu (+20% tốc độ)' },
+      { withType: 'cold_storage', speedPct: 0.20, revenuePct: 0, label: 'Sát Kho Lạnh (+20% tốc độ)' }
     ],
     dining: [
       { withType: 'kitchen', speedPct: 0, revenuePct: 0.20, label: 'Sát Bếp Nấu (+20% doanh thu)' },
-      { withType: 'cafe', speedPct: 0, revenuePct: 0.20, label: 'Cạnh Quầy Cà Phê (+20% doanh thu)' }
+      { withType: 'cafe', speedPct: 0, revenuePct: 0.20, label: 'Cạnh Quầy Cà Phê (+20% doanh thu)' },
+      { withType: 'marketing', speedPct: 0, revenuePct: 0.20, label: 'Cạnh Phòng Marketing (+20% doanh thu)' }
     ],
     packing: [
       { withType: 'kitchen', speedPct: 0.20, revenuePct: 0, label: 'Sát Bếp Nấu (+20% tốc độ)' }
     ],
     dispatch: [
-      { withType: 'packing', speedPct: 0.25, revenuePct: 0, label: 'Sát Trạm Đóng Gói (+25% tốc độ)' }
+      { withType: 'packing', speedPct: 0.25, revenuePct: 0, label: 'Sát Trạm Đóng Gói (+25% tốc độ)' },
+      { withType: 'drone_hub', speedPct: 0.20, revenuePct: 0, label: 'Cạnh Trạm Drone (+20% tốc độ)' }
     ],
     cafe: [
-      { withType: 'dining', speedPct: 0, revenuePct: 0.20, label: 'Cạnh Phòng Ăn Bistro (+20% doanh thu)' }
+      { withType: 'dining', speedPct: 0, revenuePct: 0.20, label: 'Cạnh Phòng Ăn Bistro (+20% doanh thu)' },
+      { withType: 'marketing', speedPct: 0, revenuePct: 0.15, label: 'Cạnh Phòng Marketing (+15% doanh thu)' }
     ],
     office: [
       { withType: 'kitchen', speedPct: 0.15, revenuePct: 0.15, label: 'Sát Bếp Nấu (+15% hiệu suất)' },
       { withType: 'packing', speedPct: 0.15, revenuePct: 0.15, label: 'Sát Trạm Đóng Gói (+15% hiệu suất)' },
-      { withType: 'dispatch', speedPct: 0.15, revenuePct: 0.15, label: 'Sát Bãi Xe Giao Nhận (+15% hiệu suất)' }
+      { withType: 'dispatch', speedPct: 0.15, revenuePct: 0.15, label: 'Sát Bãi Xe Giao Nhận (+15% hiệu suất)' },
+      { withType: 'marketing', speedPct: 0.15, revenuePct: 0.15, label: 'Sát Phòng Marketing (+15% hiệu suất)' },
+      { withType: 'drone_hub', speedPct: 0.15, revenuePct: 0.15, label: 'Sát Trạm Drone (+15% hiệu suất)' }
+    ],
+    cold_storage: [
+      { withType: 'warehouse', speedPct: 0.20, revenuePct: 0, label: 'Sát Kho Nguyên Liệu (+20% tốc độ)' },
+      { withType: 'kitchen', speedPct: 0.15, revenuePct: 0, label: 'Sát Bếp Nấu (+15% tốc độ)' }
+    ],
+    marketing: [
+      { withType: 'dining', speedPct: 0, revenuePct: 0.20, label: 'Cạnh Phòng Ăn Bistro (+20% doanh thu)' },
+      { withType: 'office', speedPct: 0.15, revenuePct: 0.15, label: 'Sát Văn Phòng (+15% hiệu suất)' }
+    ],
+    drone_hub: [
+      { withType: 'packing', speedPct: 0.25, revenuePct: 0, label: 'Sát Trạm Đóng Gói (+25% tốc độ)' },
+      { withType: 'dispatch', speedPct: 0.15, revenuePct: 0.15, label: 'Sát Bãi Xe (+15% hiệu suất)' }
     ]
   },
+
+  menus: {
+    pho_bo: {
+      id: 'pho_bo',
+      name: 'Phở Bò Gia Truyền',
+      icon: '🍜',
+      unlockRep: 0,
+      desc: 'Nước dùng ninh xương đậm đà, tăng +15% doanh thu ăn tại chỗ.',
+      kitchenSpeed: 1.0,
+      packingSpeed: 1.0,
+      diningRev: 1.15,
+      dispatchRev: 1.0
+    },
+    banh_mi: {
+      id: 'banh_mi',
+      name: 'Bánh Mì & Cà Phê Phố',
+      icon: '🥖',
+      unlockRep: 20,
+      desc: 'Phục vụ siêu tốc cho dân văn phòng: +25% tốc độ Bếp & Đóng gói, +15% doanh thu giao hàng.',
+      kitchenSpeed: 1.25,
+      packingSpeed: 1.25,
+      diningRev: 1.05,
+      dispatchRev: 1.15
+    },
+    com_tam: {
+      id: 'com_tam',
+      name: 'Cơm Tấm Sườn Nướng',
+      icon: '🍛',
+      unlockRep: 45,
+      desc: 'Suất ăn đầy đặn giá trị cao: +20% doanh thu Bistro, +30% doanh thu Giao nhận.',
+      kitchenSpeed: 1.0,
+      packingSpeed: 1.10,
+      diningRev: 1.20,
+      dispatchRev: 1.30
+    },
+    lau_pho: {
+      id: 'lau_pho',
+      name: 'Đại Tiệc Lẩu Phố Cổ',
+      icon: '🍲',
+      unlockRep: 80,
+      desc: 'Thực đơn thượng hạng: +20% tốc độ chế biến & đóng gói, +35% doanh thu toàn kênh.',
+      kitchenSpeed: 1.20,
+      packingSpeed: 1.20,
+      diningRev: 1.35,
+      dispatchRev: 1.35
+    }
+  },
+
+  gridTiers: [
+    { size: 4, label: '4×4 (16 ô)', cost: 0, minRep: 0 },
+    { size: 5, label: '5×5 (25 ô)', cost: 1200, minRep: 15 },
+    { size: 6, label: '6×6 (36 ô)', cost: 2600, minRep: 40 }
+  ],
 
   dayPhases: [
     { id: 'morning', start: 0, end: 18, label: '☀️ Buổi sáng', speedPct: 0, revenuePct: 0, isNight: false, isRush: false },

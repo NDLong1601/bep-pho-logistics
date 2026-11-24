@@ -79,6 +79,66 @@ function getStaffCost(room) {
   return Math.round(GAME_CONFIG.rooms[room.type].staffCost * Math.pow(1.55, room.staff - 1));
 }
 
+const RESOURCE_LABELS = {
+  ingredients: 'Kho',
+  dishes: 'Món',
+  parcels: 'Đơn',
+  coins: 'Xu',
+  rep: 'Uy tín'
+};
+
+function getMissingInputInfo(room) {
+  const cfg = GAME_CONFIG.rooms[room.type];
+  if (!cfg || !cfg.requires) return null;
+  for (const [key, needed] of Object.entries(cfg.requires)) {
+    const current = state[key] || 0;
+    if (current < needed) {
+      const label = RESOURCE_LABELS[key] ? `Thiếu ${RESOURCE_LABELS[key]}` : `Thiếu ${key}`;
+      return { key, label, needed, current };
+    }
+  }
+  return null;
+}
+
+function getRoomCycleStats(room, level = room.level, staff = room.staff, bonuses = getGlobalBonuses()) {
+  const cfg = GAME_CONFIG.rooms[room.type];
+  if (!cfg) return { cycleSec: 1, output: {} };
+  const speed = (1 / cfg.cycleTime) * bonuses.speedMult * (1 + (level - 1) * 0.14);
+  const cycleSec = 1 / Math.max(0.01, speed);
+  const output = cfg.produce(level, staff, 1, bonuses);
+  return { cycleSec, output };
+}
+
+function formatRoomOutput(output) {
+  if (!output) return '';
+  const parts = [];
+  if (output.ingredients) parts.push(`+${output.ingredients} Kho`);
+  if (output.dishes) parts.push(`+${output.dishes} Món`);
+  if (output.parcels) parts.push(`+${output.parcels} Đơn`);
+  if (output.coins) parts.push(`+${output.coins} Xu`);
+  if (output.rep) parts.push(`+${output.rep} Uy tín`);
+  return parts.join(' · ');
+}
+
+function getNetResourceRates() {
+  const bonuses = getGlobalBonuses();
+  const rates = { coins: 0, ingredients: 0, dishes: 0, parcels: 0 };
+  for (const room of state.rooms) {
+    const cfg = GAME_CONFIG.rooms[room.type];
+    if (!cfg || getMissingInputInfo(room)) continue;
+    const { cycleSec, output } = getRoomCycleStats(room, room.level, room.staff, bonuses);
+    if (cfg.requires) {
+      for (const [k, amt] of Object.entries(cfg.requires)) {
+        if (k in rates) rates[k] -= amt / cycleSec;
+      }
+    }
+    for (const [k, amt] of Object.entries(output)) {
+      if (k in rates) rates[k] += amt / cycleSec;
+    }
+  }
+  return rates;
+}
+
 function showToast(msg) {
   const box = document.getElementById('toast-box');
   const el = document.createElement('div');

@@ -63,6 +63,26 @@ const roomMeshesMap = new Map(); // key -> { group, animHooks, agents }
 const roomTagMap = new Map();    // key -> DOM element
 const activeFloaters = [];
 const steamPuffs = [];
+const sharedSteamGeo = new THREE.SphereGeometry(0.12, 8, 8);
+sharedSteamGeo.userData = { shared: true };
+
+// Free GPU geometries and materials safely (preserving TextureCache & shared geometries)
+function disposeObject3D(root) {
+  if (!root) return;
+  root.traverse((child) => {
+    if (child.isMesh || child.isLineSegments) {
+      if (child.geometry && !(child.geometry.userData && child.geometry.userData.shared)) {
+        child.geometry.dispose();
+      }
+      if (child.material) {
+        const mats = Array.isArray(child.material) ? child.material : [child.material];
+        for (const m of mats) {
+          if (m && typeof m.dispose === 'function') m.dispose();
+        }
+      }
+    }
+  });
+}
 
 function gridToWorld3D(gx, gy) {
   const step = GAME_CONFIG.TILE_SIZE + GAME_CONFIG.TILE_GAP;
@@ -73,7 +93,11 @@ function gridToWorld3D(gx, gy) {
 
 // Build Studio Ground Grid (expandable plots + subtle decorative outer architectural grid)
 function buildGroundGrid() {
-  while (groundGroup.children.length) groundGroup.remove(groundGroup.children[0]);
+  while (groundGroup.children.length) {
+    const child = groundGroup.children[0];
+    disposeObject3D(child);
+    groundGroup.remove(child);
+  }
   plotHitMeshes.length = 0;
   plotOutlineMeshes.clear();
 

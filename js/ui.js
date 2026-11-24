@@ -1,6 +1,21 @@
 // =========================================================================
 // 9. HUD, CONTRACT & INSPECTOR DRAWER
 // =========================================================================
+function updateRateBadge(id, rate) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (Math.abs(rate) < 0.05) {
+    el.textContent = '';
+    return;
+  }
+  const sign = rate > 0 ? '+' : '';
+  const numStr = Math.abs(rate) >= 10 ? Math.round(rate).toString() : rate.toFixed(1);
+  el.textContent = `${sign}${numStr}/s`;
+  el.className = rate > 0
+    ? 'text-[10px] font-semibold tabular-nums text-emerald-700'
+    : 'text-[10px] font-semibold tabular-nums text-amber-700';
+}
+
 function updateHUD() {
   const maxPlots = GAME_CONFIG.GRID_COLS * GAME_CONFIG.GRID_ROWS;
   document.getElementById('stat-coins').textContent = state.coins.toLocaleString('vi-VN');
@@ -12,6 +27,12 @@ function updateHUD() {
   document.getElementById('stat-rooms').textContent = `${state.rooms.length}/${maxPlots}`;
   document.getElementById('stat-total-served').textContent = state.totalServed;
   document.getElementById('stat-total-earned').textContent = `${state.totalEarned.toLocaleString('vi-VN')} Xu`;
+
+  const rates = getNetResourceRates();
+  updateRateBadge('rate-coins', rates.coins);
+  updateRateBadge('rate-ingredients', rates.ingredients);
+  updateRateBadge('rate-dishes', rates.dishes);
+  updateRateBadge('rate-parcels', rates.parcels);
 }
 
 function getContractMetricValue(metric) {
@@ -56,6 +77,19 @@ function closeInspector() {
 function updateSelectedRoomProgressOnly(room) {
   const bar = document.getElementById('drawer-room-progress');
   if (bar) bar.style.width = `${Math.min(100, Math.round(room.progress * 100))}%`;
+
+  const statusBox = document.getElementById('drawer-room-status');
+  if (statusBox) {
+    const missing = getMissingInputInfo(room);
+    const curStats = getRoomCycleStats(room);
+    if (missing) {
+      statusBox.className = 'text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-300/80 rounded-xl px-2.5 py-1.5';
+      statusBox.textContent = `⚠️ Đang tạm dừng: ${missing.label} (Cần ${missing.needed}, hiện có ${missing.current})`;
+    } else {
+      statusBox.className = 'text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200/70 rounded-xl px-2.5 py-1.5';
+      statusBox.textContent = `✅ Đang vận hành · Chu kỳ ${curStats.cycleSec.toFixed(1)}s`;
+    }
+  }
 }
 
 function renderDrawer() {
@@ -109,6 +143,30 @@ function renderDrawer() {
     const refund = Math.round(cfg.cost * 0.6);
     const key = `${gx}_${gy}`;
 
+    const curStats = getRoomCycleStats(room, room.level, room.staff, bonuses);
+    const nextLvStats = room.level < GAME_CONFIG.MAX_LEVEL
+      ? getRoomCycleStats(room, room.level + 1, room.staff, bonuses)
+      : null;
+    const nextStaffStats = room.staff < GAME_CONFIG.MAX_STAFF_PER_ROOM
+      ? getRoomCycleStats(room, room.level, room.staff + 1, bonuses)
+      : null;
+    const missing = getMissingInputInfo(room);
+
+    const statusClass = missing
+      ? 'text-amber-800 bg-amber-50 border-amber-300/80'
+      : 'text-emerald-800 bg-emerald-50 border-emerald-200/70';
+    const statusText = missing
+      ? `⚠️ Đang tạm dừng: ${missing.label} (Cần ${missing.needed}, hiện có ${missing.current})`
+      : `✅ Đang vận hành · Chu kỳ ${curStats.cycleSec.toFixed(1)}s`;
+
+    const upgradeDesc = nextLvStats
+      ? `Lên Lv.${room.level + 1}: ${formatRoomOutput(curStats.output)} → ${formatRoomOutput(nextLvStats.output)} · Chu kỳ ${curStats.cycleSec.toFixed(1)}s → ${nextLvStats.cycleSec.toFixed(1)}s`
+      : 'Đã đạt cấp tối đa';
+
+    const staffDesc = nextStaffStats
+      ? `Hiện có ${room.staff} người: ${formatRoomOutput(curStats.output)} → ${formatRoomOutput(nextStaffStats.output)} (+1 nhân sự 3D)`
+      : 'Đã đủ nhân sự';
+
     document.getElementById('drawer-icon').textContent = cfg.icon;
     document.getElementById('drawer-title').textContent = `${cfg.name} · Lv.${room.level}`;
     document.getElementById('drawer-subtitle').textContent = `${cfg.category} · ${room.staff}/${GAME_CONFIG.MAX_STAFF_PER_ROOM} nhân sự`;
@@ -116,8 +174,12 @@ function renderDrawer() {
     body.innerHTML = `
       <div class="bg-white/90 border border-stone-200/80 rounded-2xl p-3 space-y-2.5">
         <p class="text-xs text-stone-600 leading-relaxed">${cfg.desc}</p>
-        <div class="text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200/70 rounded-xl px-2.5 py-1.5">
-          ${cfg.effectText}
+        <div id="drawer-room-status" class="text-xs font-semibold border rounded-xl px-2.5 py-1.5 ${statusClass}">
+          ${statusText}
+        </div>
+        <div class="text-[11.5px] text-stone-700 bg-stone-50 border border-stone-200/70 rounded-xl px-2.5 py-1.5 flex items-center justify-between gap-2">
+          <span class="text-stone-500">Sản lượng thực tế:</span>
+          <span class="font-bold text-stone-900">${formatRoomOutput(curStats.output)}</span>
         </div>
         <div>
           <div class="flex justify-between text-[11px] text-stone-500 mb-1">
@@ -135,21 +197,21 @@ function renderDrawer() {
 
       <div class="space-y-2">
         <div class="bg-white/90 border border-stone-200/80 rounded-2xl p-3 flex items-center justify-between gap-2">
-          <div>
+          <div class="min-w-0">
             <div class="text-xs font-bold text-stone-900">Nâng cấp thiết bị</div>
-            <div class="text-[11px] text-stone-500">${room.level >= GAME_CONFIG.MAX_LEVEL ? 'Đã đạt cấp tối đa' : `Lên Lv.${room.level + 1} · Thêm nội thất & năng suất`}</div>
+            <div class="text-[11px] text-stone-500 leading-snug mt-0.5">${upgradeDesc}</div>
           </div>
-          <button id="btn-upgrade-room" class="btn-primary px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap" ${canUp ? '' : 'disabled'}>
+          <button id="btn-upgrade-room" class="btn-primary px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap shrink-0" ${canUp ? '' : 'disabled'}>
             ${room.level >= GAME_CONFIG.MAX_LEVEL ? 'Tối đa' : `${upCost} Xu`}
           </button>
         </div>
 
         <div class="bg-white/90 border border-stone-200/80 rounded-2xl p-3 flex items-center justify-between gap-2">
-          <div>
+          <div class="min-w-0">
             <div class="text-xs font-bold text-stone-900">Thuê thêm nhân viên</div>
-            <div class="text-[11px] text-stone-500">${room.staff >= GAME_CONFIG.MAX_STAFF_PER_ROOM ? 'Đã đủ nhân sự' : `Hiện có ${room.staff} người · +40% sản lượng`}</div>
+            <div class="text-[11px] text-stone-500 leading-snug mt-0.5">${staffDesc}</div>
           </div>
-          <button id="btn-hire-staff" class="btn-primary px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap" ${canStaff ? '' : 'disabled'}>
+          <button id="btn-hire-staff" class="btn-primary px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap shrink-0" ${canStaff ? '' : 'disabled'}>
             ${room.staff >= GAME_CONFIG.MAX_STAFF_PER_ROOM ? 'Đủ' : `${staffCost} Xu`}
           </button>
         </div>

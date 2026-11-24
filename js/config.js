@@ -3,6 +3,8 @@
 // =========================================================================
 const GAME_CONFIG = {
   SAVE_KEY: 'bep_pho_logistics_v1',
+  // Bump when the save format changes and add a step to SAVE_MIGRATIONS in state.js.
+  SAVE_VERSION: 2,
   GRID_COLS: 4,
   GRID_ROWS: 4,
   TILE_SIZE: 4.4,

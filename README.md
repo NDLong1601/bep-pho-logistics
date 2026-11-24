@@ -9,7 +9,10 @@ bep-pho-logistics/
 ├── index.html          # Trang chính của game
 ├── .nojekyll           # Tắt Jekyll khi deploy GitHub Pages
 ├── css/
-│   └── style.css       # Giao diện HUD, hiệu ứng kính mờ, responsive
+│   ├── style.css       # Giao diện HUD, hiệu ứng kính mờ, responsive
+│   └── tailwind.css    # Tailwind đã biên dịch sẵn (không tải từ CDN)
+├── vendor/
+│   └── three.min.js    # Three.js r128 (bản cục bộ, game chạy không cần mạng)
 └── js/
     ├── config.js       # GAME_CONFIG: thông số phòng, lưới đất, đơn hàng
     ├── audio.js        # Âm thanh tổng hợp bằng Web Audio API
@@ -38,3 +41,17 @@ bep-pho-logistics/
   2. Thêm hàm dựng nội thất 3D tương ứng vào `ROOM_BUILDERS` trong `js/builders.js`.
 - **Mở rộng bản đồ đất:** Tăng `GRID_COLS` và `GRID_ROWS` trong `js/config.js` (mặc định `4 x 4 = 16` ô).
 - **Thêm đơn hàng / nhiệm vụ:** Thêm phần tử mới vào mảng `GAME_CONFIG.contracts` trong `js/config.js`.
+
+## Thư viện cục bộ
+
+Game không tải thư viện từ CDN nữa. Three.js nằm ở `vendor/three.min.js` và Tailwind được biên dịch sẵn vào `css/tailwind.css`.
+
+Khi thêm class Tailwind mới vào `index.html` hoặc `js/`, biên dịch lại CSS (cần Node.js):
+
+```bash
+npx tailwindcss@3.4.17 --content "./index.html,./js/**/*.js" -o css/tailwind.css --minify
+```
+
+## Phiên bản file lưu
+
+`GAME_CONFIG.SAVE_VERSION` (trong `js/config.js`) ghi phiên bản của file lưu. Khi đổi cấu trúc lưu hoặc kinh tế, tăng số này và thêm một bước chuyển đổi vào `SAVE_MIGRATIONS` trong `js/state.js` để bản lưu cũ vẫn chơi tiếp được.

@@ -3,6 +3,7 @@
 // =========================================================================
 function createInitialState() {
   return {
+    saveVersion: GAME_CONFIG.SAVE_VERSION,
     coins: 650,
     ingredients: 12,
     dishes: 4,
@@ -51,8 +52,29 @@ let pendingOfflineCoins = 0;
 let pendingOfflineSec = 0;
 let hazardSpawnTimer = 9;
 
+// Each entry upgrades a save from version (index + 1) to (index + 2).
+// Add a new function here whenever the save format or economy changes in a way
+// old saves cannot simply absorb through the defaults below.
+const SAVE_MIGRATIONS = [
+  // v1 -> v2: saves before versioning existed. Nothing to convert yet;
+  // the defaults in normalizeLoadedState fill any missing fields.
+  (s) => s
+];
+
+function migrateSave(parsed) {
+  let s = parsed;
+  let v = typeof s.saveVersion === 'number' && s.saveVersion >= 1 ? s.saveVersion : 1;
+  while (v < GAME_CONFIG.SAVE_VERSION) {
+    const step = SAVE_MIGRATIONS[v - 1];
+    if (typeof step === 'function') s = step(s) || s;
+    v += 1;
+  }
+  s.saveVersion = GAME_CONFIG.SAVE_VERSION;
+  return s;
+}
+
 function normalizeLoadedState(parsed) {
-  const s = Object.assign(createInitialState(), parsed);
+  const s = Object.assign(createInitialState(), migrateSave(parsed));
   if (typeof s.dailyEarned !== 'number') s.dailyEarned = 0;
   if (typeof s.expressCooldown !== 'number') s.expressCooldown = 4;
   if (s.expressOrder && typeof s.expressOrder.timeLeft !== 'number') s.expressOrder = null;
@@ -74,7 +96,10 @@ function normalizeLoadedState(parsed) {
   return s;
 }
 
+let saveBlockedByNewerVersion = false;
+
 function saveGame(showMsg = false) {
+  if (saveBlockedByNewerVersion) return;
   try {
     state.lastSavedAt = Date.now();
     localStorage.setItem(GAME_CONFIG.SAVE_KEY, JSON.stringify(state));
@@ -89,6 +114,12 @@ function loadGame() {
     const raw = localStorage.getItem(GAME_CONFIG.SAVE_KEY);
     if (!raw) return;
     const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed.saveVersion === 'number' && parsed.saveVersion > GAME_CONFIG.SAVE_VERSION) {
+      // Save written by a newer build: don't load it, and don't let autosave overwrite it.
+      saveBlockedByNewerVersion = true;
+      if (typeof showToast === 'function') showToast('Bản lưu đến từ phiên bản game mới hơn, chưa thể tải.');
+      return;
+    }
     if (parsed && Array.isArray(parsed.rooms) && typeof parsed.coins === 'number') {
       state = normalizeLoadedState(parsed);
 
@@ -457,8 +488,13 @@ function fulfillTicket(ticketId, isManualClick = false, skipResourceCost = false
     state[t.resource] -= remaining;
   }
 
+  // skipResourceCost = the ticket was filled automatically by a service room's
+  // cycle. That cycle already paid coins, rep and the served count, so the ticket
+  // only adds the tip here; paying the base reward again would count the same
+  // dish twice.
+  const autoFilled = skipResourceCost;
   const viralMult = 1 + 0.15 * getPerkBonus('viral_brand');
-  const baseCoins = skipResourceCost ? Math.round(t.reward * 0.35 * viralMult) : Math.round(t.reward * viralMult);
+  const baseCoins = autoFilled ? 0 : Math.round(t.reward * viralMult);
   const comboMult = getComboMultiplier();
   const tipPerkMult = 1 + 0.35 * getPerkBonus('tip_jar');
   const manualMult = isManualClick ? 1.25 : 1.0;
@@ -469,8 +505,10 @@ function fulfillTicket(ticketId, isManualClick = false, skipResourceCost = false
   state.totalEarned += totalGain;
   state.dailyEarned = (state.dailyEarned || 0) + totalGain;
   state.dailyTips = (state.dailyTips || 0) + tipCoins;
-  state.rep += t.rep;
-  state.totalServed += 1;
+  if (!autoFilled) {
+    state.rep += t.rep;
+    state.totalServed += 1;
+  }
   state.dailyOrdersCompleted = (state.dailyOrdersCompleted || 0) + 1;
   state.comboCount = (state.comboCount || 0) + 1;
 

@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Bếp Phố Logistics — Game Quản Lý Nhà Hàng & Giao Nhận 3D Isometric</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div id="game-container">
+    <canvas id="game-canvas"></canvas>
+    <div id="overlay-layer"></div>
+
+    <!-- TOP HUD BAR -->
+    <header class="fixed top-3.5 left-3.5 right-3.5 z-20 flex flex-wrap items-center justify-between gap-2.5 pointer-events-none">
+      <!-- Brand + Resources -->
+      <div class="hud-glass rounded-2xl px-3.5 py-2 flex flex-wrap items-center gap-2.5 pointer-events-auto max-w-full">
+        <div class="flex items-center gap-2.5 pr-3 border-r border-stone-900/10">
+          <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-600 to-orange-700 flex items-center justify-center text-white shadow-sm">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11h18"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M8 21h8"/><path d="M12 18v3"/><path d="M8 7c0-1.5 1-2 1-3.5"/><path d="M12 7c0-1.5 1-2 1-3.5"/><path d="M16 7c0-1.5 1-2 1-3.5"/></svg>
+          </div>
+          <div class="leading-tight hidden sm:block">
+            <div class="font-bold text-[13.5px] tracking-tight text-stone-900">Bếp Phố Logistics</div>
+            <div class="text-[11px] font-medium text-stone-500">Ngày <span id="stat-day">1</span> · <span id="stat-rooms">3/16</span> phân khu</div>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-1.5 text-xs font-semibold">
+          <div id="pill-coins" class="stat-chip rounded-xl px-2.5 py-1.5 flex items-center gap-1.5" title="Ngân sách (Xu)">
+            <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+            <span id="stat-coins" class="tabular-nums text-stone-900 font-bold">650</span>
+            <span class="text-[10.5px] text-stone-400 font-medium hidden sm:inline">Xu</span>
+          </div>
+          <div id="pill-ingredients" class="stat-chip rounded-xl px-2.5 py-1.5 flex items-center gap-1.5" title="Nguyên liệu trong kho">
+            <span class="w-2 h-2 rounded-full bg-emerald-600"></span>
+            <span id="stat-ingredients" class="tabular-nums text-stone-800">12</span>
+            <span class="text-[10.5px] text-stone-400 font-medium hidden md:inline">Kho</span>
+          </div>
+          <div id="pill-dishes" class="stat-chip rounded-xl px-2.5 py-1.5 flex items-center gap-1.5" title="Món ăn sẵn sàng">
+            <span class="w-2 h-2 rounded-full bg-orange-500"></span>
+            <span id="stat-dishes" class="tabular-nums text-stone-800">4</span>
+            <span class="text-[10.5px] text-stone-400 font-medium hidden md:inline">Món</span>
+          </div>
+          <div id="pill-parcels" class="stat-chip rounded-xl px-2.5 py-1.5 flex items-center gap-1.5" title="Đơn đóng gói chờ giao">
+            <span class="w-2 h-2 rounded-full bg-sky-600"></span>
+            <span id="stat-parcels" class="tabular-nums text-stone-800">0</span>
+            <span class="text-[10.5px] text-stone-400 font-medium hidden md:inline">Đơn</span>
+          </div>
+          <div id="pill-rep" class="stat-chip rounded-xl px-2.5 py-1.5 hidden lg:flex items-center gap-1.5" title="Uy tín thương hiệu">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="#D98A2B" stroke="#D98A2B" stroke-width="1.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            <span id="stat-rep" class="tabular-nums text-amber-700">10</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Toolbar -->
+      <div class="hud-glass rounded-2xl px-2 py-1.5 flex items-center gap-1.5 pointer-events-auto">
+        <button id="btn-pause" class="btn-ghost rounded-xl px-2.5 py-1.5 text-xs font-semibold flex items-center gap-1.5" title="Tạm dừng / Tiếp tục (Space)">
+          <span id="pause-icon">⏸</span><span class="hidden sm:inline" id="pause-label">Chạy</span>
+        </button>
+        <button id="btn-speed" class="btn-ghost rounded-xl px-2.5 py-1.5 text-xs font-bold tabular-nums" title="Đổi tốc độ (1 / 2)">1x</button>
+        <button id="btn-sound" class="btn-ghost rounded-xl w-8 h-8 flex items-center justify-center text-xs" title="Bật/Tắt âm thanh">🔊</button>
+        <button id="btn-system" class="btn-ghost rounded-xl px-3 py-1.5 text-xs font-semibold flex items-center gap-1.5" title="Lưu game & Mở rộng">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.6.85 1 1.51 1H21a2 2 0 0 1 0 4h-.09c-.66 0-1.25.4-1.51 1z"/></svg>
+          <span class="hidden sm:inline">Mở rộng</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- BOTTOM-LEFT COZY CONTRACT CARD -->
+    <aside id="contract-panel" class="fixed bottom-4 left-3.5 z-20 w-72 max-w-[calc(100vw-28px)] hud-glass rounded-2xl p-3.5 pointer-events-auto">
+      <div class="flex items-center justify-between mb-1.5">
+        <span class="text-[10.5px] font-bold uppercase tracking-wider text-amber-800/80">Đơn hàng nhẹ nhàng</span>
+        <span id="contract-reward" class="text-[11px] font-bold text-emerald-800 bg-emerald-500/12 border border-emerald-600/20 px-2 py-0.5 rounded-full">
+          +220 Xu
+        </span>
+      </div>
+      <div id="contract-title" class="text-[13.5px] font-bold text-stone-900 leading-snug">Bữa trưa văn phòng phố cổ</div>
+      <div id="contract-desc" class="text-[11.5px] text-stone-500 mt-0.5">Tích lũy 6 món ăn nóng hổi</div>
+      <div class="mt-2.5 flex items-center gap-2">
+        <div class="flex-1 h-1.5 bg-stone-900/10 rounded-full overflow-hidden">
+          <div id="contract-bar" class="h-full bg-gradient-to-r from-amber-500 to-emerald-600 rounded-full transition-all duration-300" style="width: 0%"></div>
+        </div>
+        <span id="contract-progress" class="text-[11px] font-bold text-stone-600 tabular-nums">0/6</span>
+      </div>
+      <button id="btn-claim-contract" class="btn-primary w-full mt-2.5 py-2 rounded-xl text-xs font-bold hidden">
+        Nhận thưởng & Đơn mới
+      </button>
+    </aside>
+
+    <!-- BOTTOM-RIGHT CAMERA CONTROLS -->
+    <div class="fixed bottom-4 right-3.5 z-20 flex flex-col items-end gap-2 pointer-events-none">
+      <div class="hud-glass rounded-2xl p-1.5 flex items-center gap-1 pointer-events-auto">
+        <button id="btn-rotate" class="btn-ghost px-2.5 h-8 rounded-xl text-xs font-semibold flex items-center gap-1" title="Xoay góc nhìn 90° (Q)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+          <span class="hidden sm:inline">Xoay</span>
+        </button>
+        <button id="btn-zoom-out" class="btn-ghost w-8 h-8 rounded-xl text-sm font-bold flex items-center justify-center" title="Thu nhỏ (-)">−</button>
+        <button id="btn-cam-reset" class="btn-ghost px-2.5 h-8 rounded-xl text-xs font-semibold flex items-center justify-center" title="Căn giữa (R)">Trung tâm</button>
+        <button id="btn-zoom-in" class="btn-ghost w-8 h-8 rounded-xl text-sm font-bold flex items-center justify-center" title="Phóng to (+)">+</button>
+      </div>
+      <div class="hud-glass rounded-xl px-3 py-1.5 text-[11px] text-stone-600 pointer-events-auto hidden md:block">
+        Nhấn <strong class="text-stone-900">phòng</strong> để nâng cấp · Nhấn <strong class="text-stone-900">ô lưới trống</strong> để xây mới · Kéo để di chuyển
+      </div>
+    </div>
+
+    <!-- RIGHT INSPECTOR / BUILD DRAWER -->
+    <aside id="inspector-drawer" class="fixed top-20 right-3.5 bottom-20 z-30 w-80 max-w-[calc(100vw-28px)] hud-glass rounded-2xl flex flex-col overflow-hidden hidden pointer-events-auto">
+      <div class="px-4 py-3 border-b border-stone-900/10 flex items-center justify-between bg-white/45">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <div id="drawer-icon" class="w-9 h-9 rounded-xl bg-amber-100/80 border border-amber-900/10 flex items-center justify-center text-lg shrink-0">🏠</div>
+          <div class="min-w-0">
+            <h2 id="drawer-title" class="font-bold text-[13.5px] text-stone-900 truncate">Chi tiết phân khu</h2>
+            <p id="drawer-subtitle" class="text-[11px] text-stone-500 truncate">Ô đất (1, 1)</p>
+          </div>
+        </div>
+        <button id="btn-close-drawer" class="btn-ghost w-7 h-7 rounded-lg text-xs font-bold flex items-center justify-center" title="Đóng (Esc)">✕</button>
+      </div>
+      <div id="drawer-body" class="flex-1 overflow-y-auto custom-scroll p-4 space-y-3"></div>
+    </aside>
+
+    <!-- SYSTEM / EXTENSIBILITY / DEPLOY MODAL -->
+    <div id="system-modal" class="fixed inset-0 z-40 bg-stone-950/35 backdrop-blur-xs hidden items-center justify-center p-4">
+      <div class="hud-glass rounded-3xl w-full max-w-xl max-h-[85vh] flex flex-col overflow-hidden bg-[#FDFBF7]">
+        <div class="px-5 py-4 border-b border-stone-900/10 flex items-center justify-between">
+          <div>
+            <h2 class="font-bold text-base text-stone-900">Quản lý Lưu trữ & Mở rộng Game</h2>
+            <p class="text-xs text-stone-500">Chạy trực tiếp trên GitHub Pages · Cấu trúc dữ liệu tách biệt dễ mở rộng</p>
+          </div>
+          <button id="btn-close-modal" class="btn-ghost w-8 h-8 rounded-xl text-sm font-bold">✕</button>
+        </div>
+
+        <div class="px-5 pt-2.5 flex gap-2 border-b border-stone-900/10">
+          <button id="tab-save" class="px-3 py-2 text-xs font-bold border-b-2 border-amber-700 text-amber-800">Lưu & Dữ liệu</button>
+          <button id="tab-extend" class="px-3 py-2 text-xs font-bold border-b-2 border-transparent text-stone-500 hover:text-stone-800">Kiến trúc Mở rộng</button>
+          <button id="tab-deploy" class="px-3 py-2 text-xs font-bold border-b-2 border-transparent text-stone-500 hover:text-stone-800">Deploy GitHub Pages</button>
+        </div>
+
+        <div id="modal-content" class="p-5 overflow-y-auto custom-scroll text-xs text-stone-700 space-y-4">
+          <div id="panel-save" class="space-y-4">
+            <div class="grid grid-cols-2 gap-2.5">
+              <div class="bg-white border border-stone-200/80 rounded-2xl p-3">
+                <div class="text-[11px] text-stone-500">Tổng lượt phục vụ / giao</div>
+                <div id="stat-total-served" class="text-lg font-bold text-stone-900 mt-0.5 tabular-nums">0</div>
+              </div>
+              <div class="bg-white border border-stone-200/80 rounded-2xl p-3">
+                <div class="text-[11px] text-stone-500">Tổng doanh thu</div>
+                <div id="stat-total-earned" class="text-lg font-bold text-amber-700 mt-0.5 tabular-nums">0 Xu</div>
+              </div>
+            </div>
+
+            <div class="flex flex-wrap gap-2">
+              <button id="btn-manual-save" class="btn-primary px-3.5 py-2 rounded-xl font-semibold">Lưu ngay</button>
+              <button id="btn-export-json" class="btn-ghost px-3.5 py-2 rounded-xl font-semibold">Copy mã Save JSON</button>
+              <button id="btn-toggle-import" class="btn-ghost px-3.5 py-2 rounded-xl font-semibold">Nhập mã Save</button>
+            </div>
+
+            <div id="import-area" class="hidden space-y-2">
+              <textarea id="import-textarea" rows="3" class="w-full rounded-xl border border-stone-300 p-2.5 text-xs font-mono bg-white" placeholder="Dán chuỗi JSON đã xuất vào đây..."></textarea>
+              <button id="btn-confirm-import" class="btn-primary px-3.5 py-1.5 rounded-xl font-semibold">Áp dụng dữ liệu Save</button>
+            </div>
+
+            <div class="pt-3 border-t border-stone-200 flex items-center justify-between">
+              <span class="text-stone-500">Bắt đầu lại từ khu bếp ban đầu?</span>
+              <button id="btn-reset-game" class="px-3 py-1.5 rounded-xl bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 font-semibold">
+                Chơi lại từ đầu
+              </button>
+            </div>
+          </div>
+
+          <div id="panel-extend" class="hidden space-y-3 leading-relaxed">
+            <p>Toàn bộ thông số phòng, chuỗi cung ứng nhà hàng – logistics, nhân sự và lưới đất đều nằm gọn trong đối tượng <code class="bg-amber-100/80 px-1.5 py-0.5 rounded font-mono text-amber-900">GAME_CONFIG</code> ở đầu phần mã JavaScript:</p>
+            <ul class="list-disc pl-5 space-y-1.5 text-stone-600">
+              <li><strong>Thêm công trình mới:</strong> Thêm 1 mục vào <code class="font-mono text-stone-800">GAME_CONFIG.rooms</code> và một hàm dựng nội thất trong <code class="font-mono text-stone-800">ROOM_BUILDERS</code> — menu xây dựng, đổ bóng 3D và chuỗi mô phỏng tự nhận diện.</li>
+              <li><strong>Mở rộng quỹ đất:</strong> Tăng <code class="font-mono text-stone-800">GRID_COLS</code> và <code class="font-mono text-stone-800">GRID_ROWS</code> (mặc định 4×4 = 16 phân khu).</li>
+              <li><strong>Thêm đơn hàng / nhiệm vụ:</strong> Thêm mục mới vào mảng <code class="font-mono text-stone-800">GAME_CONFIG.contracts</code>.</li>
+            </ul>
+          </div>
+
+          <div id="panel-deploy" class="hidden space-y-3 leading-relaxed">
+            <p>Game chạy hoàn toàn bằng <strong>1 tệp tĩnh duy nhất</strong>, không cần bước build:</p>
+            <ol class="list-decimal pl-5 space-y-1.5 text-stone-600">
+              <li>Đổi tên tệp thành <code class="bg-stone-200/80 px-1.5 py-0.5 rounded font-mono text-stone-800">index.html</code>.</li>
+              <li>Đẩy lên repository GitHub (nhánh <code class="font-mono text-stone-800">main</code>).</li>
+              <li>Vào <strong>Settings → Pages → Deploy from a branch (main / root)</strong> và lưu.</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TOAST CONTAINER -->
+    <div id="toast-box" class="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 pointer-events-none flex flex-col items-center gap-2"></div>
+  </div>
+
+  <script src="js/config.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/state.js"></script>
+  <script src="js/textures.js"></script>
+  <script src="js/scene.js"></script>
+  <script src="js/builders.js"></script>
+  <script src="js/simulation.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>

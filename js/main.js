@@ -73,7 +73,7 @@ canvas.addEventListener('pointermove', (e) => {
     dragState.moved = true;
     const dist = getPinchDistance();
     if (lastPinchDist > 0 && dist > 0) {
-      viewSize = Math.min(28, Math.max(8.5, viewSize * (lastPinchDist / dist)));
+      viewSize = Math.min(40, Math.max(8.5, viewSize * (lastPinchDist / dist)));
       updateCameraProjection();
     }
     lastPinchDist = dist;
@@ -88,11 +88,12 @@ canvas.addEventListener('pointermove', (e) => {
     const panScale = viewSize / Math.max(300, canvas.clientHeight);
     const right = new THREE.Vector3(Math.cos(camYawCurrent), 0, -Math.sin(camYawCurrent));
     const forward = new THREE.Vector3(-Math.sin(camYawCurrent), 0, -Math.cos(camYawCurrent));
+    const panLimit = getGridSize() * 3.5;
     camTarget.copy(dragState.startTarget)
       .addScaledVector(right, -dx * panScale * 1.15)
       .addScaledVector(forward, dy * panScale * 1.65);
-    camTarget.x = Math.max(-14, Math.min(14, camTarget.x));
-    camTarget.z = Math.max(-14, Math.min(14, camTarget.z));
+    camTarget.x = Math.max(-panLimit, Math.min(panLimit, camTarget.x));
+    camTarget.z = Math.max(-panLimit, Math.min(panLimit, camTarget.z));
   } else if (activePointers.size === 0) {
     const plot = pickPlot(e.clientX, e.clientY);
     const changed = (plot?.gx !== hoveredPlot?.gx) || (plot?.gy !== hoveredPlot?.gy);
@@ -175,7 +176,7 @@ canvas.addEventListener('pointercancel', handlePointerEnd);
 
 canvas.addEventListener('wheel', (e) => {
   e.preventDefault();
-  viewSize = Math.min(28, Math.max(8.5, viewSize * (e.deltaY > 0 ? 1.09 : 0.91)));
+  viewSize = Math.min(40, Math.max(8.5, viewSize * (e.deltaY > 0 ? 1.09 : 0.91)));
   updateCameraProjection();
 }, { passive: false });
 
@@ -213,7 +214,7 @@ document.getElementById('btn-zoom-in').addEventListener('click', () => {
   updateCameraProjection();
 });
 document.getElementById('btn-zoom-out').addEventListener('click', () => {
-  viewSize = Math.min(28, viewSize * 1.16);
+  viewSize = Math.min(40, viewSize * 1.16);
   updateCameraProjection();
 });
 document.getElementById('btn-cam-reset').addEventListener('click', () => { SoundFX.click(); resetCamera(); });
@@ -256,12 +257,36 @@ document.getElementById('btn-claim-express').addEventListener('click', () => {
 
 // Modal & Tabs
 const modal = document.getElementById('system-modal');
-document.getElementById('btn-system').addEventListener('click', () => {
+const tabs = [
+  { btn: 'tab-save', panel: 'panel-save' },
+  { btn: 'tab-expansion', panel: 'panel-expansion' },
+  { btn: 'tab-extend', panel: 'panel-extend' },
+  { btn: 'tab-deploy', panel: 'panel-deploy' }
+];
+
+function selectModalTab(tabBtnId) {
+  tabs.forEach(x => {
+    const active = x.btn === tabBtnId;
+    document.getElementById(x.btn).className = active
+      ? 'px-3 py-2 text-xs font-bold border-b-2 border-amber-700 text-amber-800'
+      : 'px-3 py-2 text-xs font-bold border-b-2 border-transparent text-stone-500 hover:text-stone-800';
+    document.getElementById(x.panel).classList.toggle('hidden', !active);
+  });
+  if (tabBtnId === 'tab-expansion') renderExpansionPanel();
+}
+
+function openSystemModal(tabBtnId = 'tab-save') {
   SoundFX.click();
   updateHUD();
+  selectModalTab(tabBtnId);
   modal.classList.remove('hidden');
   modal.classList.add('flex');
-});
+}
+
+document.getElementById('btn-system').addEventListener('click', () => openSystemModal('tab-save'));
+document.getElementById('btn-menu-select').addEventListener('click', () => openSystemModal('tab-expansion'));
+document.getElementById('btn-expand-grid').addEventListener('click', () => openSystemModal('tab-expansion'));
+
 document.getElementById('btn-close-modal').addEventListener('click', () => {
   modal.classList.add('hidden');
   modal.classList.remove('flex');
@@ -273,21 +298,8 @@ modal.addEventListener('click', (e) => {
   }
 });
 
-const tabs = [
-  { btn: 'tab-save', panel: 'panel-save' },
-  { btn: 'tab-extend', panel: 'panel-extend' },
-  { btn: 'tab-deploy', panel: 'panel-deploy' }
-];
 tabs.forEach(t => {
-  document.getElementById(t.btn).addEventListener('click', () => {
-    tabs.forEach(x => {
-      const active = x.btn === t.btn;
-      document.getElementById(x.btn).className = active
-        ? 'px-3 py-2 text-xs font-bold border-b-2 border-amber-700 text-amber-800'
-        : 'px-3 py-2 text-xs font-bold border-b-2 border-transparent text-stone-500 hover:text-stone-800';
-      document.getElementById(x.panel).classList.toggle('hidden', !active);
-    });
-  });
+  document.getElementById(t.btn).addEventListener('click', () => selectModalTab(t.btn));
 });
 
 document.getElementById('btn-manual-save').addEventListener('click', () => saveGame(true));
@@ -323,9 +335,13 @@ document.getElementById('btn-confirm-import').addEventListener('click', () => {
     if (typeof state.dailyEarned !== 'number') state.dailyEarned = 0;
     if (typeof state.expressCooldown !== 'number') state.expressCooldown = 4;
     if (state.expressOrder && typeof state.expressOrder.timeLeft !== 'number') state.expressOrder = null;
+    if (typeof state.gridSize !== 'number' || state.gridSize < 4 || state.gridSize > 6) state.gridSize = 4;
+    if (!GAME_CONFIG.menus || !GAME_CONFIG.menus[state.activeMenu]) state.activeMenu = 'pho_bo';
     lastDayPhaseId = null;
     closeInspector();
+    buildGroundGrid();
     rebuildRooms3D();
+    resetCamera();
     updateHUD();
     updateContractUI();
     saveGame(false);
@@ -352,6 +368,7 @@ document.getElementById('btn-reset-game').addEventListener('click', (e) => {
   state = createInitialState();
   lastDayPhaseId = null;
   closeInspector();
+  buildGroundGrid();
   rebuildRooms3D();
   updateHUD();
   updateContractUI();
@@ -371,7 +388,7 @@ window.addEventListener('keydown', (e) => {
   else if (e.key === 'r' || e.key === 'R') { resetCamera(); }
   else if (e.key === 'Escape') { closeInspector(); modal.classList.add('hidden'); modal.classList.remove('flex'); }
   else if (e.key === '+' || e.key === '=') { viewSize = Math.max(8.5, viewSize * 0.88); updateCameraProjection(); }
-  else if (e.key === '-') { viewSize = Math.min(28, viewSize * 1.14); updateCameraProjection(); }
+  else if (e.key === '-') { viewSize = Math.min(40, viewSize * 1.14); updateCameraProjection(); }
 });
 // =========================================================================
 // 11. BOOTSTRAP & MAIN LOOP
@@ -405,6 +422,12 @@ window.onload = () => {
   resetCamera();
   updateHUD();
   updateContractUI();
+  if (pendingOfflineCoins > 0) {
+    const mins = Math.max(1, Math.round(pendingOfflineSec / 60));
+    showToast(`🌙 Chào mừng trở lại! Bếp thu về +${pendingOfflineCoins.toLocaleString('vi-VN')} Xu (${mins} phút)`);
+    pendingOfflineCoins = 0;
+    pendingOfflineSec = 0;
+  }
   if (rafId) cancelAnimationFrame(rafId);
   rafId = requestAnimationFrame(animate);
   setInterval(() => saveGame(false), 12000);

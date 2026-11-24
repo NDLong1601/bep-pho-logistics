@@ -112,8 +112,8 @@ function updateSimulation(dt, timeSec) {
     if (!missing) {
       room.starved = false;
       room.missingLabel = '';
-      const synergy = getRoomSynergy(room);
-      const speed = (1 / cfg.cycleTime) * bonuses.speedMult * synergy.speedMult * phase.rushSpeedMult * (1 + (room.level - 1) * 0.14);
+      const eff = getRoomEffectiveMultipliers(room, bonuses);
+      const speed = (1 / cfg.cycleTime) * eff.speedMult * (1 + (room.level - 1) * 0.14);
       room.progress += effDt * speed;
       if (room.progress >= 1) {
         room.progress -= 1;
@@ -211,14 +211,7 @@ function completeRoomCycle(room, bonuses) {
     }
   }
 
-  const synergy = getRoomSynergy(room);
-  const phase = getCurrentDayPhase();
-  const isServiceRoom = room.type === 'dining' || room.type === 'dispatch' || room.type === 'cafe';
-  const effBonuses = {
-    speedMult: bonuses.speedMult * synergy.speedMult * phase.rushSpeedMult,
-    revenueMult: bonuses.revenueMult * synergy.revenueMult * (isServiceRoom ? phase.rushRevenueMult : 1)
-  };
-
+  const effBonuses = getRoomEffectiveMultipliers(room, bonuses);
   const out = cfg.produce(room.level, room.staff, 1, effBonuses);
   const msgs = [];
   if (out.ingredients) { state.ingredients += out.ingredients; msgs.push(`+${out.ingredients} Kho`); bumpStat('pill-ingredients'); }

@@ -35,8 +35,8 @@ sunLight.castShadow = true;
 sunLight.shadow.mapSize.width = 2048;
 sunLight.shadow.mapSize.height = 2048;
 sunLight.shadow.camera.near = 4;
-sunLight.shadow.camera.far = 70;
-const d = 22;
+sunLight.shadow.camera.far = 85;
+const d = 28;
 sunLight.shadow.camera.left = -d;
 sunLight.shadow.camera.right = d;
 sunLight.shadow.camera.top = d;
@@ -218,9 +218,10 @@ function disposeObject3D(root) {
 }
 
 function gridToWorld3D(gx, gy) {
+  const gridSize = getGridSize();
   const step = GAME_CONFIG.TILE_SIZE + GAME_CONFIG.TILE_GAP;
-  const ox = (GAME_CONFIG.GRID_COLS - 1) / 2;
-  const oz = (GAME_CONFIG.GRID_ROWS - 1) / 2;
+  const ox = (gridSize - 1) / 2;
+  const oz = (gridSize - 1) / 2;
   return new THREE.Vector3((gx - ox) * step, 0, (gy - oz) * step);
 }
 
@@ -236,7 +237,7 @@ function buildGroundGrid() {
 
   // Shadow-receiving studio tabletop plane
   const shadowPlane = new THREE.Mesh(
-    new THREE.PlaneGeometry(120, 120),
+    new THREE.PlaneGeometry(160, 160),
     new THREE.ShadowMaterial({ opacity: 0.14 })
   );
   shadowPlane.rotation.x = -Math.PI / 2;
@@ -244,15 +245,15 @@ function buildGroundGrid() {
   shadowPlane.receiveShadow = true;
   groundGroup.add(shadowPlane);
 
-  const step = GAME_CONFIG.TILE_SIZE + GAME_CONFIG.TILE_GAP;
+  const gridSize = getGridSize();
   const tileGeo = new THREE.BoxGeometry(GAME_CONFIG.TILE_SIZE, 0.08, GAME_CONFIG.TILE_SIZE);
   const edgeGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(GAME_CONFIG.TILE_SIZE - 0.04, 0.09, GAME_CONFIG.TILE_SIZE - 0.04));
 
   // Outer decorative grid lines (2 rings outside buildable area like reference image)
   const pad = 2;
-  for (let gx = -pad; gx < GAME_CONFIG.GRID_COLS + pad; gx++) {
-    for (let gy = -pad; gy < GAME_CONFIG.GRID_ROWS + pad; gy++) {
-      const inBounds = gx >= 0 && gx < GAME_CONFIG.GRID_COLS && gy >= 0 && gy < GAME_CONFIG.GRID_ROWS;
+  for (let gx = -pad; gx < gridSize + pad; gx++) {
+    for (let gy = -pad; gy < gridSize + pad; gy++) {
+      const inBounds = gx >= 0 && gx < gridSize && gy >= 0 && gy < gridSize;
       const pos = gridToWorld3D(gx, gy);
 
       if (!inBounds) {
@@ -381,13 +382,20 @@ function createMiniCharacter(role, outfitColor, isGuest = false) {
     );
     puff.position.set(0, 1.12, 0);
     g.add(puff);
-  } else if (role === 'dispatch' && !isGuest) {
+  } else if ((role === 'dispatch' || role === 'drone_hub') && !isGuest) {
     const helmet = new THREE.Mesh(
       new THREE.SphereGeometry(0.18, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.58),
-      new THREE.MeshStandardMaterial({ color: 0xD15540, roughness: 0.35 })
+      new THREE.MeshStandardMaterial({ color: role === 'drone_hub' ? 0x2B6E8C : 0xD15540, roughness: 0.35 })
     );
     helmet.position.set(0, 0.87, 0);
     g.add(helmet);
+  } else if (role === 'cold_storage' && !isGuest) {
+    const beanie = new THREE.Mesh(
+      new THREE.SphereGeometry(0.18, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.6),
+      new THREE.MeshStandardMaterial({ color: 0xDCEBF5, roughness: 0.65 })
+    );
+    beanie.position.set(0, 0.87, 0);
+    g.add(beanie);
   } else {
     const hair = new THREE.Mesh(
       new THREE.SphereGeometry(0.175, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.56),
@@ -400,6 +408,12 @@ function createMiniCharacter(role, outfitColor, isGuest = false) {
   // Carried prop
   if ((role === 'packing' || role === 'warehouse') && !isGuest) {
     addBox(g, 0.24, 0.20, 0.22, 0, 0.52, 0.22, 0xC9935B, { roughness: 0.85 });
+  } else if (role === 'cold_storage' && !isGuest) {
+    addBox(g, 0.24, 0.18, 0.22, 0, 0.52, 0.22, 0x7EC8E3, { roughness: 0.45 });
+  } else if (role === 'marketing' && !isGuest) {
+    addBox(g, 0.08, 0.14, 0.03, 0.12, 0.58, 0.22, 0x2B333B);
+  } else if (role === 'drone_hub' && !isGuest) {
+    addBox(g, 0.20, 0.06, 0.14, 0, 0.52, 0.22, 0x3D434A);
   } else if (role === 'dining' && !isGuest) {
     addCyl(g, 0.16, 0.14, 0.03, 0.14, 0.52, 0.20, 0x3D3530);
     addCyl(g, 0.08, 0.06, 0.06, 0.14, 0.56, 0.20, 0xE67E45);
@@ -436,7 +450,8 @@ function updateCameraTransform() {
 
 function resetCamera() {
   const w = canvas.parentElement.clientWidth;
-  viewSize = w < 640 ? 22 : (w < 1024 ? 17.5 : 14.8);
+  const scale = getGridSize() / 4;
+  viewSize = (w < 640 ? 22 : (w < 1024 ? 17.5 : 14.8)) * scale;
   camTarget.set(0, 0.4, 0);
   camYawIndex = 0;
   camYawGoal = Math.PI / 4;

@@ -488,6 +488,195 @@ const ROOM_BUILDERS = {
 
     addPlant(g, -1.48, -1.48, 0.95);
     addPlant(g, 1.55, 1.35, 0.8);
+  },
+
+  cold_storage(g, room, animHooks) {
+    // Walk-in Glass Freezer Chamber on back-left
+    addBox(g, 1.65, 1.68, 1.05, -0.92, 0.84, -1.25, 0xDCEAF2, { roughness: 0.3, metalness: 0.2 });
+    addBox(g, 1.32, 1.32, 0.06, -0.92, 0.86, -0.71, 0x8ED6F0, { transparent: true, opacity: 0.42, roughness: 0.1 });
+    addBox(g, 1.55, 0.06, 0.06, -0.92, 1.62, -0.71, 0x62E0FF, { emissive: 0x35C2E8, emissiveIntensity: 0.75 });
+    // Chilled produce crates inside/near freezer
+    addBox(g, 0.42, 0.30, 0.38, -1.25, 0.30, -1.10, 0x5BA3C6);
+    addBox(g, 0.42, 0.30, 0.38, -0.65, 0.30, -1.10, 0x7BC4A6);
+
+    // Overhead Cooling Condenser + Spinning Fan
+    addBox(g, 0.92, 0.42, 0.36, 0.75, 1.55, -1.55, 0x9FB2C2, { metalness: 0.35 });
+    const fan = new THREE.Group();
+    fan.position.set(0.75, 1.55, -1.35);
+    addBox(fan, 0.34, 0.06, 0.04, 0, 0, 0, 0x2F353B);
+    addBox(fan, 0.06, 0.34, 0.04, 0, 0, 0, 0x2F353B);
+    g.add(fan);
+
+    // Temp readout display on back-right wall
+    const tempBoard = addBox(g, 0.95, 0.56, 0.06, 0.82, 1.48, -1.86, 0x23303D);
+    const tempScreen = addBox(g, 0.78, 0.38, 0.03, 0.82, 1.48, -1.82, 0x62E0FF, { emissive: 0x2FB2E0, emissiveIntensity: 0.6 });
+    tempBoard.userData.wallSide = 'NZ';
+    tempScreen.userData.wallSide = 'NZ';
+
+    // Insulated pallet & frozen boxes
+    addBox(g, 1.15, 0.10, 0.95, 0.85, 0.05, 0.55, 0x5B7C92);
+    addBox(g, 0.46, 0.40, 0.44, 0.65, 0.30, 0.48, 0xB8E0F2);
+    addBox(g, 0.44, 0.36, 0.42, 1.12, 0.28, 0.62, 0x89C4E1);
+
+    if (room.level >= 2) {
+      // Stainless chilled prep counter
+      addBox(g, 1.15, 0.72, 0.62, 0.88, 0.36, -1.25, 0xDCE5EC, { metalness: 0.35, roughness: 0.25 });
+    }
+    if (room.level >= 3) {
+      // Cryogenic cold-chain rolling cart
+      addBox(g, 0.68, 0.52, 0.56, -1.22, 0.28, 0.82, 0x4E89AE);
+      addBox(g, 0.54, 0.08, 0.48, -1.22, 0.58, 0.82, 0xBCE8FA);
+    }
+    if (room.level >= 4) {
+      // Extra frozen storage rack along -X wall
+      addBox(g, 0.56, 1.25, 0.95, -1.48, 0.62, 0.02, 0x9FB2C2, { metalness: 0.35 });
+    }
+    if (room.level >= 5) {
+      // Glowing frost-blue smart status beacon
+      addCyl(g, 0.05, 0.07, 0.98, 1.48, 0.49, 1.25, 0x4E5C6B);
+      addCyl(g, 0.09, 0.09, 0.18, 1.48, 1.04, 1.25, 0x62E0FF, { emissive: 0x35C2E8, emissiveIntensity: 0.9 });
+    }
+
+    animHooks.push((t) => {
+      fan.rotation.z = t * 6.5;
+    });
+  },
+
+  marketing(g, room, animHooks) {
+    // KPI & Rating Campaign Board on -Z wall
+    const board = addBox(g, 1.75, 0.96, 0.06, 0.25, 1.44, -1.86, 0xFFFFFF, { map: makeWallArtTexture('kpi'), roughness: 0.4 });
+    board.userData.wallSide = 'NZ';
+
+    // Food photography studio table with Ring Light
+    addBox(g, 1.15, 0.66, 0.76, -0.82, 0.33, -0.95, 0xF5ECE0, { roughness: 0.55 });
+    addCyl(g, 0.22, 0.16, 0.08, -0.82, 0.70, -0.95, 0xFFFDF8);
+    addCyl(g, 0.14, 0.14, 0.05, -0.82, 0.75, -0.95, 0xD96B38);
+    // Studio Ring Light stand
+    addCyl(g, 0.03, 0.05, 0.82, -0.82, 1.08, -1.35, 0x3D434A);
+    addCyl(g, 0.22, 0.22, 0.05, -0.82, 1.48, -1.32, 0xFFF5D6, { emissive: 0xFFE382, emissiveIntensity: 0.85 });
+
+    // Content & App dispatch desk
+    addBox(g, 1.35, 0.66, 0.72, 0.75, 0.33, 0.48, 0x8C5535);
+    addBox(g, 0.42, 0.28, 0.04, 0.52, 0.84, 0.36, 0x2B333B, { rotY: 0.15 });
+    addBox(g, 0.38, 0.22, 0.02, 0.52, 0.84, 0.38, 0x65B2D4, { emissive: 0x3B8AB0, emissiveIntensity: 0.5, rotY: 0.15 });
+    addBox(g, 0.42, 0.28, 0.04, 1.02, 0.84, 0.36, 0x2B333B, { rotY: -0.15 });
+    addBox(g, 0.38, 0.22, 0.02, 1.02, 0.84, 0.38, 0xFF9F43, { emissive: 0xE67E45, emissiveIntensity: 0.5, rotY: -0.15 });
+    addChair(g, 0.75, 1.06, Math.PI, 0xB84B6E);
+
+    if (room.level >= 2) {
+      // Softbox studio light
+      addCyl(g, 0.03, 0.06, 1.15, -1.48, 0.58, -1.32, 0x2F353B);
+      addBox(g, 0.36, 0.36, 0.16, -1.48, 1.22, -1.28, 0xFFFDF8, { emissive: 0xFFF2B2, emissiveIntensity: 0.65, rotY: 0.5 });
+    }
+    if (room.level >= 3) {
+      // Livestream tripod + phone rig with LIVE LED
+      addCyl(g, 0.03, 0.05, 1.05, -1.12, 0.52, 0.75, 0x2F353B);
+      addBox(g, 0.22, 0.14, 0.04, -1.12, 1.08, 0.75, 0x2B333B);
+      addBox(g, 0.08, 0.04, 0.04, -1.12, 1.20, 0.75, 0xFF4757, { emissive: 0xFF4757, emissiveIntensity: 0.9 });
+    }
+    if (room.level >= 4) {
+      // 5-Star Neon Plaque on -X wall
+      const neonPlaque = addBox(g, 0.06, 0.72, 1.25, -1.86, 1.42, 0.15, 0x332822);
+      const neonStars = addBox(g, 0.03, 0.36, 0.96, -1.82, 1.42, 0.15, 0xFFD08A, { emissive: 0xFFB84D, emissiveIntensity: 0.85 });
+      neonPlaque.userData.wallSide = 'NX';
+      neonStars.userData.wallSide = 'NX';
+    }
+
+    let trophy = null;
+    if (room.level >= 5) {
+      // Rotating viral golden award pedestal
+      addCyl(g, 0.24, 0.28, 0.62, 1.38, 0.31, -1.22, 0xEFE6D8);
+      trophy = new THREE.Mesh(
+        new THREE.OctahedronGeometry(0.20, 0),
+        new THREE.MeshStandardMaterial({ color: 0xF2C04B, emissive: 0xD98A2B, emissiveIntensity: 0.4, metalness: 0.7, roughness: 0.25 })
+      );
+      trophy.position.set(1.38, 0.88, -1.22);
+      trophy.castShadow = true;
+      g.add(trophy);
+    }
+
+    addPlant(g, -1.48, 1.42, 0.85);
+    animHooks.push((t) => {
+      if (trophy) {
+        trophy.rotation.y = t * 1.4;
+        trophy.position.y = 0.88 + Math.sin(t * 2.5) * 0.06;
+      }
+    });
+  },
+
+  drone_hub(g, room, animHooks) {
+    // Telemetry screen on -Z wall
+    const teleBoard = addBox(g, 1.85, 0.92, 0.08, 0.15, 1.35, -1.84, 0x26323D);
+    const teleGlow = addBox(g, 1.62, 0.68, 0.03, 0.15, 1.35, -1.79, 0x4CE3FF, { emissive: 0x2E8EB0, emissiveIntensity: 0.55 });
+    teleBoard.userData.wallSide = 'NZ';
+    teleGlow.userData.wallSide = 'NZ';
+
+    // Helipad Landing Pad with glowing 'H'
+    addCyl(g, 0.92, 0.96, 0.05, 0.38, 0.025, 0.35, 0x3D4854);
+    addBox(g, 0.12, 0.02, 0.72, 0.12, 0.06, 0.35, 0x4CE3FF, { emissive: 0x35C2E8, emissiveIntensity: 0.75 });
+    addBox(g, 0.12, 0.02, 0.72, 0.64, 0.06, 0.35, 0x4CE3FF, { emissive: 0x35C2E8, emissiveIntensity: 0.75 });
+    addBox(g, 0.52, 0.02, 0.12, 0.38, 0.06, 0.35, 0x4CE3FF, { emissive: 0x35C2E8, emissiveIntensity: 0.75 });
+
+    // Automated parcel staging shelf
+    addBox(g, 0.68, 0.68, 1.45, -1.42, 0.34, -0.35, 0x4A5866, { metalness: 0.35 });
+    addBox(g, 0.40, 0.32, 0.40, -1.42, 0.84, -0.65, 0xD69D5E);
+    addBox(g, 0.38, 0.30, 0.38, -1.42, 0.83, -0.05, 0xE2B27A);
+
+    function buildQuadcopter(px, pz) {
+      const d = new THREE.Group();
+      d.position.set(px, 0.18, pz);
+      addBox(d, 0.34, 0.12, 0.34, 0, 0.14, 0, 0x2F363D, { metalness: 0.5 });
+      addBox(d, 0.30, 0.22, 0.28, 0, -0.02, 0, 0xE67E45); // parcel under drone
+      const rotors = [];
+      [[-0.32, -0.32], [0.32, -0.32], [-0.32, 0.32], [0.32, 0.32]].forEach(([ax, az]) => {
+        addBox(d, 0.38, 0.04, 0.05, ax * 0.5, 0.16, az * 0.5, 0x5C6D7D, { rotY: Math.atan2(ax, az) });
+        const rotor = addBox(d, 0.34, 0.02, 0.05, ax, 0.20, az, 0x4CE3FF, { emissive: 0x35C2E8, emissiveIntensity: 0.6 });
+        rotors.push(rotor);
+      });
+      g.add(d);
+      return { group: d, rotors };
+    }
+
+    const drone1 = buildQuadcopter(0.38, 0.35);
+    const drone2 = room.level >= 3 ? buildQuadcopter(-0.78, 0.72) : null;
+
+    if (room.level >= 2) {
+      // Solar Battery Dock
+      addBox(g, 0.48, 0.75, 0.48, -1.45, 0.38, 1.15, 0x3C4856, { metalness: 0.4 });
+      addBox(g, 0.36, 0.06, 0.36, -1.45, 0.79, 1.15, 0x49D48A, { emissive: 0x2F9E62, emissiveIntensity: 0.7 });
+    }
+
+    let radarDish = null;
+    if (room.level >= 4) {
+      addCyl(g, 0.06, 0.09, 0.95, 1.42, 0.48, -1.35, 0x5C6D7D);
+      radarDish = addCyl(g, 0.26, 0.08, 0.16, 1.42, 1.02, -1.35, 0xDCE5EC, { metalness: 0.4 });
+      radarDish.rotation.x = 0.65;
+    }
+
+    if (room.level >= 5) {
+      // Illuminated Drone Launch Gantry
+      addBox(g, 0.10, 1.75, 0.10, -0.58, 0.88, 1.55, 0x3D4854, { metalness: 0.4 });
+      addBox(g, 0.10, 1.75, 0.10, 1.38, 0.88, 1.55, 0x3D4854, { metalness: 0.4 });
+      addBox(g, 2.08, 0.14, 0.14, 0.40, 1.78, 1.55, 0x2B6E8C);
+      addBox(g, 1.40, 0.06, 0.16, 0.40, 1.78, 1.55, 0x4CE3FF, { emissive: 0x35C2E8, emissiveIntensity: 0.8 });
+    }
+
+    animHooks.push((t) => {
+      drone1.rotors.forEach(r => { r.rotation.y = t * 22; });
+      const lift1 = Math.max(0, Math.sin(t * 1.15 + room.gx));
+      drone1.group.position.y = 0.20 + lift1 * 1.35;
+      drone1.group.position.z = 0.35 + lift1 * 0.55;
+
+      if (drone2) {
+        drone2.rotors.forEach(r => { r.rotation.y = -t * 22; });
+        const lift2 = Math.max(0, Math.sin(t * 1.15 + room.gy + 2.4));
+        drone2.group.position.y = 0.20 + lift2 * 1.25;
+        drone2.group.position.z = 0.72 + lift2 * 0.45;
+      }
+      if (radarDish) {
+        radarDish.rotation.z = t * 1.4;
+      }
+    });
   }
 };
 

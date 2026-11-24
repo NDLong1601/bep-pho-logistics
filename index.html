@@ -3,7 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#C86234" />
   <title>Bếp Phố Logistics — Game Quản Lý Nhà Hàng & Giao Nhận 3D Isometric</title>
+  <link rel="manifest" href="manifest.json" />
   <script src="https://cdn.tailwindcss.com/3.4.17"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <link rel="stylesheet" href="css/style.css" />
@@ -69,6 +71,12 @@
         </button>
         <button id="btn-speed" class="btn-ghost rounded-xl px-2.5 py-1.5 text-xs font-bold tabular-nums" title="Đổi tốc độ (1 / 2)">1x</button>
         <button id="btn-sound" class="btn-ghost rounded-xl w-8 h-8 flex items-center justify-center text-xs" title="Bật/Tắt âm thanh">🔊</button>
+        <button id="btn-menu-select" class="btn-ghost rounded-xl px-2.5 py-1.5 text-xs font-semibold flex items-center gap-1" title="Chọn Thực đơn Đặc sản">
+          <span id="menu-icon">🍜</span><span class="hidden md:inline" id="menu-label">Thực đơn</span>
+        </button>
+        <button id="btn-expand-grid" class="btn-ghost rounded-xl px-2.5 py-1.5 text-xs font-semibold flex items-center gap-1" title="Mở rộng quỹ đất">
+          <span>🗺️</span><span class="hidden md:inline" id="expand-label">5×5</span>
+        </button>
         <button id="btn-system" class="btn-ghost rounded-xl px-3 py-1.5 text-xs font-semibold flex items-center gap-1.5" title="Lưu game & Mở rộng">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.6.85 1 1.51 1H21a2 2 0 0 1 0 4h-.09c-.66 0-1.25.4-1.51 1z"/></svg>
           <span class="hidden sm:inline">Mở rộng</span>
@@ -156,8 +164,9 @@
           <button id="btn-close-modal" class="btn-ghost w-8 h-8 rounded-xl text-sm font-bold">✕</button>
         </div>
 
-        <div class="px-5 pt-2.5 flex gap-2 border-b border-stone-900/10">
+        <div class="px-5 pt-2.5 flex flex-wrap gap-2 border-b border-stone-900/10">
           <button id="tab-save" class="px-3 py-2 text-xs font-bold border-b-2 border-amber-700 text-amber-800">Lưu & Dữ liệu</button>
+          <button id="tab-expansion" class="px-3 py-2 text-xs font-bold border-b-2 border-transparent text-stone-500 hover:text-stone-800">Thực đơn & Mở đất</button>
           <button id="tab-extend" class="px-3 py-2 text-xs font-bold border-b-2 border-transparent text-stone-500 hover:text-stone-800">Kiến trúc Mở rộng</button>
           <button id="tab-deploy" class="px-3 py-2 text-xs font-bold border-b-2 border-transparent text-stone-500 hover:text-stone-800">Deploy GitHub Pages</button>
         </div>
@@ -191,6 +200,14 @@
               <button id="btn-reset-game" class="px-3 py-1.5 rounded-xl bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 font-semibold">
                 Chơi lại từ đầu
               </button>
+            </div>
+          </div>
+
+          <div id="panel-expansion" class="hidden space-y-4">
+            <div id="expansion-grid-card" class="bg-white border border-stone-200/80 rounded-2xl p-3.5 space-y-2"></div>
+            <div>
+              <div class="font-bold text-xs text-stone-900 mb-2">Thực đơn Đặc sản Phục vụ</div>
+              <div id="expansion-menu-list" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5"></div>
             </div>
           </div>
 

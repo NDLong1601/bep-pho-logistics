@@ -377,6 +377,7 @@ document.getElementById('btn-reset-game').addEventListener('click', (e) => {
   e.target.textContent = 'Chơi lại từ đầu';
   state = createInitialState();
   saveBlockedByNewerVersion = false;
+  clearAllCustomers();
   lastDayPhaseId = null;
   closeInspector();
   buildGroundGrid();

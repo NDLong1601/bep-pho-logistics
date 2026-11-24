@@ -319,16 +319,76 @@ function updateSelectedRoomProgressOnly(room) {
 
   const statusBox = document.getElementById('drawer-room-status');
   if (statusBox) {
-    const missing = getMissingInputInfo(room);
-    const curStats = getRoomCycleStats(room);
-    if (missing) {
-      statusBox.className = 'text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-300/80 rounded-xl px-2.5 py-1.5';
-      statusBox.textContent = `⚠️ Đang tạm dừng: ${missing.label} (Cần ${missing.needed}, hiện có ${missing.current})`;
-    } else {
-      statusBox.className = 'text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200/70 rounded-xl px-2.5 py-1.5';
-      statusBox.textContent = `✅ Đang vận hành · Chu kỳ ${curStats.cycleSec.toFixed(1)}s`;
-    }
+    const st = getRoomStatusInfo(room);
+    statusBox.className = `text-xs font-semibold border rounded-xl px-2.5 py-1.5 ${st.cls}`;
+    statusBox.textContent = st.text;
   }
+  updateKitchenPanel();
+}
+
+function getRoomStatusInfo(room) {
+  const okCls = 'text-emerald-800 bg-emerald-50 border-emerald-200/70';
+  const warnCls = 'text-amber-800 bg-amber-50 border-amber-300/80';
+  if (isVenueRoom(room)) {
+    const occ = getVenueOccupancy(room);
+    const text = `🪑 ${occ.seated}/${occ.seats} ghế có khách · ${occ.queued} khách đang chờ`;
+    return room.starved
+      ? { cls: warnCls, text: `${text} · ⚠️ Bếp chưa kịp món` }
+      : { cls: okCls, text };
+  }
+  const missing = getMissingInputInfo(room);
+  if (missing) {
+    return { cls: warnCls, text: `⚠️ Đang tạm dừng: ${missing.label} (${missing.detail || `Cần ${missing.needed}, hiện có ${missing.current}`})` };
+  }
+  if (room.type === 'kitchen' && (state.dishes || 0) >= getDishCounterCap()) {
+    return { cls: okCls, text: `✅ Quầy đã đủ ${state.dishes} bát, bếp chờ khách gọi thêm` };
+  }
+  return { cls: okCls, text: `✅ Đang vận hành · Chu kỳ ${getRoomCycleStats(room).cycleSec.toFixed(1)}s` };
+}
+
+function getKitchenPanelHtml() {
+  return `
+    <div class="bg-white/90 border border-stone-200/80 rounded-2xl p-3 space-y-2.5">
+      <div class="text-[10.5px] font-bold uppercase tracking-wide text-stone-500">Nồi nước dùng & bồn rửa</div>
+      <div>
+        <div class="flex justify-between text-[11px] text-stone-600 mb-1">
+          <span>🍲 Nước dùng</span><span id="kp-broth-text" class="font-bold text-stone-900"></span>
+        </div>
+        <div class="h-1.5 bg-stone-200 rounded-full overflow-hidden"><div id="kp-broth-bar" class="h-full bg-amber-600 rounded-full transition-all duration-150"></div></div>
+      </div>
+      <div>
+        <div class="flex justify-between text-[11px] text-stone-600 mb-1">
+          <span>🧽 Bát bẩn trong bồn</span><span id="kp-sink-text" class="font-bold text-stone-900"></span>
+        </div>
+        <div class="h-1.5 bg-stone-200 rounded-full overflow-hidden"><div id="kp-sink-bar" class="h-full bg-sky-600 rounded-full transition-all duration-150"></div></div>
+      </div>
+      <div class="text-[11px] text-stone-500" id="kp-counter-text"></div>
+      <div class="grid grid-cols-2 gap-2">
+        <button id="btn-kp-broth" class="btn-ghost py-1.5 rounded-xl text-[11px] font-bold">Ninh nồi mới (${GAME_CONFIG.restaurant.broth.ingredientCost} Kho)</button>
+        <button id="btn-kp-wash" class="btn-ghost py-1.5 rounded-xl text-[11px] font-bold">Rửa ${GAME_CONFIG.restaurant.sink.washPerTap} bát</button>
+      </div>
+    </div>`;
+}
+
+function updateKitchenPanel() {
+  const brothText = document.getElementById('kp-broth-text');
+  if (!brothText) return;
+  const cap = getBrothCap();
+  const broth = Math.floor(state.broth || 0);
+  brothText.textContent = state.brothCooking > 0
+    ? `${broth}/${cap} bát · nồi mới sau ${Math.ceil(state.brothCooking)}s`
+    : `${broth}/${cap} bát`;
+  document.getElementById('kp-broth-bar').style.width = `${Math.min(100, Math.round((broth / cap) * 100))}%`;
+  const sinkCap = getSinkCap();
+  const dirty = Math.ceil(state.dirtyBowls || 0);
+  document.getElementById('kp-sink-text').textContent = `${dirty}/${sinkCap}`;
+  const sinkBar = document.getElementById('kp-sink-bar');
+  sinkBar.style.width = `${Math.min(100, Math.round((dirty / sinkCap) * 100))}%`;
+  sinkBar.classList.toggle('bg-rose-500', dirty >= sinkCap);
+  document.getElementById('kp-counter-text').textContent = `Quầy ra món: ${state.dishes || 0}/${getDishCounterCap()} bát sẵn sàng`;
+  const brothBtn = document.getElementById('btn-kp-broth');
+  brothBtn.disabled = state.brothCooking > 0 || broth >= cap || (state.ingredients || 0) < GAME_CONFIG.restaurant.broth.ingredientCost;
+  document.getElementById('btn-kp-wash').disabled = dirty <= 0;
 }
 
 function renderDrawer() {
@@ -416,14 +476,14 @@ function renderDrawer() {
       : null;
     const missing = getMissingInputInfo(room);
 
-    const statusClass = missing
-      ? 'text-amber-800 bg-amber-50 border-amber-300/80'
-      : 'text-emerald-800 bg-emerald-50 border-emerald-200/70';
-    const statusText = missing
-      ? `⚠️ Đang tạm dừng: ${missing.label} (Cần ${missing.needed}, hiện có ${missing.current})`
-      : `✅ Đang vận hành · Chu kỳ ${curStats.cycleSec.toFixed(1)}s`;
+    const isVenue = isVenueRoom(room);
+    const roomStatus = getRoomStatusInfo(room);
+    const statusClass = roomStatus.cls;
+    const statusText = roomStatus.text;
 
-    const upgradeDesc = `Lên Lv.${upReq.nextLv}: ${formatRoomOutput(curStats.output)} → ${formatRoomOutput(nextLvStats.output)} · Chu kỳ ${curStats.cycleSec.toFixed(1)}s → ${nextLvStats.cycleSec.toFixed(1)}s · Thưởng +${upReq.expGain} EXP`;
+    const upgradeDesc = isVenue
+      ? `Lên Lv.${upReq.nextLv}: Mỗi bát ${formatRoomOutput(curStats.output)} → ${formatRoomOutput(nextLvStats.output)} · Ghế ${getDiningSeats(room.level).length} → ${getDiningSeats(upReq.nextLv).length} · Thưởng +${upReq.expGain} EXP`
+      : `Lên Lv.${upReq.nextLv}: ${formatRoomOutput(curStats.output)} → ${formatRoomOutput(nextLvStats.output)} · Chu kỳ ${curStats.cycleSec.toFixed(1)}s → ${nextLvStats.cycleSec.toFixed(1)}s · Thưởng +${upReq.expGain} EXP`;
 
     const hasLv = (state.playerLevel || 1) >= upReq.reqPlayerLv;
     const hasCoins = state.coins >= upReq.coins;
@@ -445,7 +505,7 @@ function renderDrawer() {
       : '';
 
     const staffDesc = nextStaffStats
-      ? `Hiện có ${room.staff} người: ${formatRoomOutput(curStats.output)} → ${formatRoomOutput(nextStaffStats.output)} (+1 nhân sự 3D)`
+      ? `Hiện có ${room.staff} người: ${isVenue ? 'mỗi bát ' : ''}${formatRoomOutput(curStats.output)} → ${formatRoomOutput(nextStaffStats.output)} (+1 nhân sự 3D${isVenue ? ', bưng món nhanh hơn' : ''})`
       : 'Đã đủ nhân sự';
 
     const mergeInfo = curStats.mergeInfo;
@@ -515,12 +575,12 @@ function renderDrawer() {
           ${statusText}
         </div>
         <div class="text-[11.5px] text-stone-700 bg-stone-50 border border-stone-200/70 rounded-xl px-2.5 py-1.5 flex items-center justify-between gap-2">
-          <span class="text-stone-500">Sản lượng & EXP:</span>
+          <span class="text-stone-500">${isVenue ? 'Mỗi bát khách trả:' : 'Sản lượng & EXP:'}</span>
           <span class="font-bold text-stone-900">${formatRoomOutput(curStats.output)} · <span class="text-amber-700">+${curStats.expGain} EXP</span></span>
         </div>
         <div>
           <div class="flex justify-between text-[11px] text-stone-500 mb-1">
-            <span>Tiến độ chu kỳ</span>
+            <span>${isVenue ? 'Ghế đang có khách' : 'Tiến độ chu kỳ'}</span>
             <span>Tốc độ +${bonuses.speedPct}%</span>
           </div>
           <div class="h-1.5 bg-stone-200 rounded-full overflow-hidden">
@@ -528,9 +588,10 @@ function renderDrawer() {
           </div>
         </div>
         <button id="btn-boost-room" class="btn-ghost w-full py-2 rounded-xl text-xs font-bold">
-          Hỗ trợ vận hành (+35% tiến độ)
+          ${isVenue ? '👋 Mời khách ngoài phố vào quán' : 'Hỗ trợ vận hành (+35% tiến độ)'}
         </button>
       </div>
+      ${room.type === 'kitchen' ? getKitchenPanelHtml() : ''}
 
       ${mergeHtml}
       ${synergyHtml}
@@ -578,6 +639,11 @@ function renderDrawer() {
     `;
 
     document.getElementById('btn-boost-room').addEventListener('click', () => {
+      if (isVenue) {
+        inviteCustomer(room);
+        updateSelectedRoomProgressOnly(room);
+        return;
+      }
       SoundFX.click();
       room.progress += 0.35;
       if (room.progress >= 1) {
@@ -586,6 +652,12 @@ function renderDrawer() {
       }
       updateSelectedRoomProgressOnly(room);
     });
+
+    if (room.type === 'kitchen') {
+      document.getElementById('btn-kp-broth').addEventListener('click', () => { startBrothPot(true); updateKitchenPanel(); });
+      document.getElementById('btn-kp-wash').addEventListener('click', () => { washBowlsByHand(); updateSelectedRoomProgressOnly(room); });
+      updateKitchenPanel();
+    }
 
     const drawerMenuBtn = document.getElementById('btn-drawer-menu');
     if (drawerMenuBtn) {

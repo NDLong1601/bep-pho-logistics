@@ -4,7 +4,7 @@
 const GAME_CONFIG = {
   SAVE_KEY: 'bep_pho_logistics_v1',
   // Bump when the save format changes and add a step to SAVE_MIGRATIONS in state.js.
-  SAVE_VERSION: 2,
+  SAVE_VERSION: 3,
   GRID_COLS: 4,
   GRID_ROWS: 4,
   TILE_SIZE: 4.4,
@@ -47,8 +47,8 @@ const GAME_CONFIG = {
       upgradeBase: 180,
       staffCost: 130,
       cycleTime: 4.2,
-      desc: 'Chế biến Phở, Cơm tấm, Bánh mì từ nguyên liệu kho thành món nóng.',
-      effectText: '2 Kho → 2 Món nóng',
+      desc: 'Chế biến Phở từ nguyên liệu kho. Mỗi bát cần nước dùng từ nồi ninh; bồn rửa đầy bát bẩn thì bếp phải dừng.',
+      effectText: '2 Kho + nước dùng → Món nóng',
       floorStyle: 'tile',
       floorTint: '#EFEAE1',
       wallColor: '#F3EDE4',
@@ -70,8 +70,8 @@ const GAME_CONFIG = {
       upgradeBase: 200,
       staffCost: 140,
       cycleTime: 4.8,
-      desc: 'Không gian gỗ ấm áp đón thực khách từ ngoài phố vào dùng bữa tại chỗ.',
-      effectText: '1 Món → +55 Xu & +1 Uy tín',
+      desc: 'Khách từ ngoài phố vào xếp hàng, ngồi bàn, ăn phở rồi trả tiền. Nâng cấp để có thêm bàn ghế.',
+      effectText: 'Khách ngồi ăn: 1 Món → Xu & Uy tín',
       floorStyle: 'wood',
       floorTint: '#D3A676',
       wallColor: '#EFE6DA',
@@ -79,7 +79,8 @@ const GAME_CONFIG = {
       staffColor: '#4A6E8F',
       glassFront: true,
       starter: true,
-      requires: { dishes: 1 },
+      customerVenue: true,
+      // Price of one bowl paid by a seated customer (not a timed cycle).
       produce: (lv, staff, mult, bonuses) => ({
         coins: Math.round((48 + lv * 18) * (1 + (staff - 1) * 0.35) * mult * bonuses.revenueMult),
         rep: 1,
@@ -408,13 +409,35 @@ const GAME_CONFIG = {
     { title: 'Đơn VIP khách sạn phố cổ', resource: 'parcels', baseAmount: 5, baseReward: 430, rep: 7, timeLimit: 45 }
   ],
 
+  // Dining room guests are real customers now (see restaurant below), so the
+  // order rail only carries café and delivery orders.
   ticketTemplates: [
-    { id: 'bistro_table', title: 'Bàn Bistro', icon: '🍽️', requiresType: 'dining', resource: 'dishes', amount: 1, patience: 24, reward: 65, tip: 20, rep: 1, vip: false },
     { id: 'tea_party', title: 'Khách Trà Chiều', icon: '☕', requiresType: 'cafe', resource: 'dishes', amount: 1, patience: 22, reward: 75, tip: 25, rep: 1, vip: false },
     { id: 'office_delivery', title: 'Shipper Giao Phố', icon: '🛵', requiresType: 'dispatch', resource: 'parcels', amount: 1, patience: 26, reward: 125, tip: 35, rep: 2, vip: false },
-    { id: 'vip_critic', title: 'Food Reviewer VIP', icon: '👑', requiresType: 'dining', resource: 'dishes', amount: 2, patience: 20, reward: 160, tip: 60, rep: 3, vip: true },
     { id: 'drone_express', title: 'Đơn Drone Cao Tốc', icon: '🚁', requiresType: 'drone_hub', resource: 'parcels', amount: 2, patience: 22, reward: 240, tip: 70, rep: 3, vip: false }
   ],
+
+  restaurant: {
+    customers: {
+      baseIntervalSec: 7,      // time between arrivals at 0 reputation
+      repPerBoost: 120,        // every 120 rep = +100% arrival rate
+      maxRepBoost: 1.5,
+      rushIntervalMult: 0.6,   // lunch / night rush
+      minIntervalSec: 2.2,
+      maxQueue: 4,             // per dining room
+      queuePatienceSec: 22,
+      foodPatienceSec: 26,
+      serveDelaySec: 1.6,      // waiter brings the bowl
+      eatSec: 8,
+      vipChance: 0.08,
+      vipMinRep: 12,
+      vipPayMult: 2.2,
+      vipBonusRep: 2
+    },
+    broth: { baseCap: 24, capPerLevel: 8, ingredientCost: 6, simmerSec: 18 },
+    sink: { baseCap: 10, capPerLevel: 4, autoWashPerStaffSec: 0.06, washPerTap: 5 },
+    counter: { baseCap: 10, capPerLevel: 4 }  // bowls ready at the pass
+  },
 
   perkCards: [
     { id: 'sharp_knives', name: 'Dao Bếp Sắc Bén', icon: '🔪', desc: '+18% tốc độ chế biến & nhập kho cho Bếp Nấu, Kho.', effect: 'kitchenSpeed' },

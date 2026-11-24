@@ -31,6 +31,7 @@ function updateCutawayWalls() {
 }
 
 let lastDayPhaseId = null;
+let drawerRefreshTimer = 0;
 
 function updateSimulation(dt, timeSec) {
   updateCutawayWalls();
@@ -192,11 +193,20 @@ function updateSimulation(dt, timeSec) {
       continue;
     }
 
+    // Dining rooms earn from seated customers (customers.js), not a timed cycle.
+    if (cfg.customerVenue) continue;
+
     const missing = getMissingInputInfo(room);
     const wasStarved = !!room.starved;
     const prevMissingLabel = room.missingLabel || '';
 
-    if (!missing) {
+    const counterFull = room.type === 'kitchen' && (state.dishes || 0) >= getDishCounterCap();
+
+    if (!missing && counterFull) {
+      // Enough bowls waiting at the pass: cooks idle instead of over-producing.
+      room.starved = false;
+      room.missingLabel = '';
+    } else if (!missing) {
       room.starved = false;
       room.missingLabel = '';
       const eff = getRoomEffectiveMultipliers(room, bonuses);
@@ -223,6 +233,17 @@ function updateSimulation(dt, timeSec) {
     if (room.type === 'kitchen' && !room.starved && Math.random() < effDt * 2.2) {
       spawnSteamPuff(room.gx, room.gy);
     }
+  }
+
+  updateKitchenSupport(effDt);
+  updateCustomers(effDt, phase);
+
+  // Dining and kitchen panels change every frame (seats, broth, sink): refresh a few times a second.
+  drawerRefreshTimer -= dt;
+  if (drawerRefreshTimer <= 0) {
+    drawerRefreshTimer = 0.3;
+    const selRoom = selectedPlot ? getRoomAt(selectedPlot.gx, selectedPlot.gy) : null;
+    if (selRoom && (isVenueRoom(selRoom) || selRoom.type === 'kitchen')) updateSelectedRoomProgressOnly(selRoom);
   }
 
   if (starvedChanged) {
@@ -393,7 +414,12 @@ function completeRoomCycle(room, bonuses) {
   }
 
   const cycleStats = getRoomCycleStats(room, room.level, room.staff, bonuses);
-  const out = cycleStats.output;
+  const out = Object.assign({}, cycleStats.output);
+  if (room.type === 'kitchen' && out.dishes) {
+    // Each bowl needs one portion of broth from the pot.
+    out.dishes = Math.min(out.dishes, Math.floor(state.broth || 0));
+    state.broth = Math.max(0, (state.broth || 0) - out.dishes);
+  }
   const msgs = [];
   if (out.ingredients) { state.ingredients += out.ingredients; msgs.push(`+${out.ingredients} Kho`); bumpStat('pill-ingredients'); }
   if (out.dishes) { state.dishes += out.dishes; msgs.push(`+${out.dishes} Món`); bumpStat('pill-dishes'); }
@@ -495,11 +521,13 @@ function syncOverlays() {
       }
     }
 
+    updateKitchenChoreButton(entry.room, tag);
+
     const hz = entry.room.hazard;
     const hzState = hz ? `${hz.type}_${Math.ceil(hz.timeLeft)}` : '';
     if (tag.dataset.hz !== hzState) {
       tag.dataset.hz = hzState;
-      const hzBtn = tag.querySelector('.room-hazard-btn');
+      const hzBtn = tag.querySelector('.room-hazard-btn:not(.room-chore-btn)');
       if (hzBtn) {
         if (hz) {
           hzBtn.textContent = `${hz.icon} ${hz.label} (${Math.max(1, Math.ceil(hz.timeLeft))}s)`;
@@ -516,4 +544,47 @@ function syncOverlays() {
     const sc = worldToScreen(f.pos);
     f.el.style.transform = `translate3d(${sc.x.toFixed(1)}px, ${sc.y.toFixed(1)}px, 0) translate(-50%, -50%)`;
   }
+}
+
+// Clickable kitchen bubble: wash bowls when the sink fills up, or put a new
+// pot of broth on early when it runs low.
+function getKitchenChore(room) {
+  if (room.type !== 'kitchen') return null;
+  const sinkCap = getSinkCap();
+  const dirty = Math.ceil(state.dirtyBowls || 0);
+  if (dirty >= Math.ceil(sinkCap * 0.6)) {
+    return { id: 'wash', text: `🧽 Rửa bát ${dirty}/${sinkCap}`, urgent: dirty >= sinkCap };
+  }
+  if ((state.brothCooking || 0) > 0) {
+    return { id: 'cooking', text: `🍲 Đang ninh ${Math.ceil(state.brothCooking)}s`, urgent: false };
+  }
+  if ((state.broth || 0) < getBrothCap() * 0.3) {
+    return { id: 'broth', text: `🍲 Ninh nồi mới (${GAME_CONFIG.restaurant.broth.ingredientCost} Kho)`, urgent: (state.broth || 0) < 1 };
+  }
+  return null;
+}
+
+function runKitchenChore(room) {
+  const chore = getKitchenChore(room);
+  if (!chore) return;
+  if (chore.id === 'wash') washBowlsByHand();
+  else if (chore.id === 'broth') startBrothPot(true);
+  if (selectedPlot && selectedPlot.gx === room.gx && selectedPlot.gy === room.gy) updateSelectedRoomProgressOnly(room);
+}
+
+function updateKitchenChoreButton(room, tag) {
+  const btn = tag.querySelector('.room-chore-btn');
+  if (!btn) return;
+  const chore = getKitchenChore(room);
+  const key = chore ? `${chore.text}_${chore.urgent}` : '';
+  if (tag.dataset.chore === key) return;
+  tag.dataset.chore = key;
+  if (!chore) {
+    btn.classList.add('hidden');
+    return;
+  }
+  btn.textContent = chore.text;
+  btn.classList.remove('hidden');
+  btn.classList.toggle('opportunity', !chore.urgent);
+  btn.disabled = chore.id === 'cooking';
 }

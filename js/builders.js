@@ -317,6 +317,13 @@ const ROOM_BUILDERS = {
       // Side prep counter along left wall
       addBox(g, 0.66, 0.72, 1.45, -1.45, 0.36, 0.42, 0xDCE3EA, { metalness: 0.25 });
     }
+
+    // Dish sink along the right wall (dishwashers stand in front of it)
+    addBox(g, 0.62, 0.72, 1.3, 1.55, 0.36, 0.55, 0xDCE3EA, { metalness: 0.25, roughness: 0.4 });
+    addBox(g, 0.5, 0.05, 0.9, 1.55, 0.735, 0.55, 0x9FB3C2, { metalness: 0.5, roughness: 0.25 });
+    addCyl(g, 0.03, 0.03, 0.3, 1.78, 0.9, 0.55, 0xBCC7D1, { metalness: 0.6 });
+    // Stack of bowls waiting to be washed
+    addCyl(g, 0.12, 0.08, 0.16, 1.5, 0.82, 1.05, 0xFAF6F0);
     if (room.level >= 3) {
       // 2-tier Convection Oven with glowing glass doors
       addBox(g, 0.72, 1.24, 0.76, -1.42, 0.62, -0.78, 0xC5D0DA, { metalness: 0.4, roughness: 0.3 });
@@ -822,22 +829,45 @@ function rebuildRooms3D() {
     built.group.userData = { gx: room.gx, gy: room.gy, isRoomGroup: true };
     roomsGroup.add(built.group);
 
-    // Spawn 3D animated mini characters inside room
+    // Spawn 3D animated mini characters inside room, one per crew member
+    ensureCrew(room);
     const roomAgents = [];
-    const totalChars = room.staff;
-    for (let i = 0; i < totalChars; i++) {
-      const isGuest = false;
-      const charMesh = createMiniCharacter(room.type, isGuest ? 0xD4828E : cfg.staffColor, isGuest);
-      const ax = (Math.random() - 0.5) * 2.2;
-      const az = (Math.random() - 0.5) * 2.2;
-      charMesh.position.set(ax, 0, az);
-      built.interior.add(charMesh);
-      roomAgents.push({
+    for (let i = 0; i < room.staff; i++) {
+      const charMesh = createMiniCharacter(room.type, cfg.staffColor, false);
+      const agent = {
         mesh: charMesh,
+        crew: room.crew[i],
         tx: (Math.random() - 0.5) * 2.4,
         tz: (Math.random() - 0.5) * 2.4,
         wait: Math.random() * 1.4,
         phase: Math.random() * 6
+      };
+      if (room.type === 'dining') {
+        // Waiter: managed by updateWaiters() in customers.js
+        const home = getWaiterHome(i);
+        charMesh.position.set(home.x, 0, home.z);
+        agent.waiter = true;
+        agent.task = null;
+        const carry = new THREE.Group();
+        addCyl(carry, 0.11, 0.075, 0.07, 0, 0, 0, 0xFAF6F0);
+        addCyl(carry, 0.095, 0.095, 0.01, 0, 0.03, 0, 0xD9A55B);
+        carry.position.set(0.14, 0.6, 0.2);
+        carry.visible = false;
+        charMesh.add(carry);
+        agent.carry = carry;
+      } else {
+        charMesh.position.set((Math.random() - 0.5) * 2.2, 0, (Math.random() - 0.5) * 2.2);
+      }
+      built.interior.add(charMesh);
+      roomAgents.push(agent);
+    }
+    if (room.type === 'kitchen') {
+      (room.washers || []).forEach((m, wi) => {
+        const charMesh = createMiniCharacter('kitchen_washer', 0x6FA8C9, false);
+        charMesh.position.set(1.05, 0, 0.25 + wi * 0.6);
+        charMesh.rotation.y = Math.PI / 2;
+        built.interior.add(charMesh);
+        roomAgents.push({ mesh: charMesh, crew: m, washer: true, phase: Math.random() * 6 });
       });
     }
 
@@ -866,6 +896,7 @@ function rebuildRooms3D() {
     tag.innerHTML = `
       <button type="button" class="room-hazard-btn hidden"></button>
       <button type="button" class="room-hazard-btn room-chore-btn hidden"></button>
+      <button type="button" class="room-hazard-btn room-staff-btn hidden"></button>
       <div class="room-tag-row">
         <span>${cfg.icon}</span>
         <span class="room-tag-lv">Lv.${room.level}</span>
@@ -880,7 +911,12 @@ function rebuildRooms3D() {
       e.stopPropagation();
       runKitchenChore(room);
     });
-    const hzBtn = tag.querySelector('.room-hazard-btn:not(.room-chore-btn)');
+    tag.querySelector('.room-staff-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      wakeRoomCrew(room);
+      if (selectedPlot && selectedPlot.gx === room.gx && selectedPlot.gy === room.gy) renderDrawer();
+    });
+    const hzBtn = tag.querySelector('.room-hazard-btn:not(.room-chore-btn):not(.room-staff-btn)');
     hzBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       resolveRoomHazard(room.gx, room.gy);

@@ -200,7 +200,8 @@ function updateSimulation(dt, timeSec) {
     const wasStarved = !!room.starved;
     const prevMissingLabel = room.missingLabel || '';
 
-    const counterFull = room.type === 'kitchen' && (state.dishes || 0) >= getDishCounterCap();
+    const counterFull = (room.type === 'kitchen' && (state.dishes || 0) >= getDishCounterCap())
+      || (isStorageRoom(room) && (state.ingredients || 0) >= getIngredientCap());
 
     if (!missing && counterFull) {
       // Enough bowls waiting at the pass: cooks idle instead of over-producing.
@@ -235,6 +236,7 @@ function updateSimulation(dt, timeSec) {
     }
   }
 
+  updateCrew(effDt);
   updateKitchenSupport(effDt);
   updateCustomers(effDt, phase);
 
@@ -255,6 +257,20 @@ function updateSimulation(dt, timeSec) {
     for (const fn of entry.animHooks) fn(timeSec);
 
     for (const a of entry.agents) {
+      // Napping crew member: slump in place.
+      const napping = !!(a.crew && a.crew.dozing);
+      a.mesh.rotation.z = napping ? 0.32 : 0;
+      if (napping) {
+        a.mesh.userData.legL.rotation.x = 0;
+        a.mesh.userData.legR.rotation.x = 0;
+        continue;
+      }
+      if (a.waiter) continue; // moved by updateWaiters()
+      if (a.washer) {
+        a.phase += effDt * 6;
+        a.mesh.position.y = Math.abs(Math.sin(a.phase)) * 0.03;
+        continue;
+      }
       if (a.wait > 0) {
         a.wait -= effDt;
       } else {
@@ -522,12 +538,13 @@ function syncOverlays() {
     }
 
     updateKitchenChoreButton(entry.room, tag);
+    updateStaffNapButton(entry.room, tag);
 
     const hz = entry.room.hazard;
     const hzState = hz ? `${hz.type}_${Math.ceil(hz.timeLeft)}` : '';
     if (tag.dataset.hz !== hzState) {
       tag.dataset.hz = hzState;
-      const hzBtn = tag.querySelector('.room-hazard-btn:not(.room-chore-btn)');
+      const hzBtn = tag.querySelector('.room-hazard-btn:not(.room-chore-btn):not(.room-staff-btn)');
       if (hzBtn) {
         if (hz) {
           hzBtn.textContent = `${hz.icon} ${hz.label} (${Math.max(1, Math.ceil(hz.timeLeft))}s)`;
@@ -587,4 +604,21 @@ function updateKitchenChoreButton(room, tag) {
   btn.classList.remove('hidden');
   btn.classList.toggle('opportunity', !chore.urgent);
   btn.disabled = chore.id === 'cooking';
+}
+
+// Room tag bubble when someone in the room is napping: tap to wake them.
+function updateStaffNapButton(room, tag) {
+  const btn = tag.querySelector('.room-staff-btn');
+  if (!btn) return;
+  const dozing = getDozingCrew(room);
+  const key = dozing.length ? `${dozing[0].name}_${dozing.length}` : '';
+  if (tag.dataset.nap === key) return;
+  tag.dataset.nap = key;
+  if (selectedPlot && selectedPlot.gx === room.gx && selectedPlot.gy === room.gy && typeof renderDrawer === 'function') renderDrawer();
+  if (!dozing.length) {
+    btn.classList.add('hidden');
+    return;
+  }
+  btn.textContent = dozing.length > 1 ? `💤 ${dozing.length} người ngủ gật` : `💤 ${dozing[0].name} ngủ gật`;
+  btn.classList.remove('hidden');
 }

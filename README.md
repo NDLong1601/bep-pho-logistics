@@ -21,6 +21,7 @@ bep-pho-logistics/
     ├── scene.js        # Camera 3D Isometric, ánh sáng, đổ bóng, lưới đất
     ├── builders.js     # Dựng mô hình 3D nội thất & nhân vật cho từng phòng
     ├── customers.js    # Khách thật: xếp hàng, ngồi bàn, ăn, trả tiền; nồi nước dùng & bồn rửa
+    ├── staff.js        # Nhân viên có tên & tính cách, ngủ gật, người rửa bát
     ├── simulation.js   # Vòng lặp sản xuất, di chuyển nhân vật, hiệu ứng
     ├── ui.js           # Thanh tài nguyên, đơn hàng, bảng nâng cấp/xây mới
     └── main.js         # Điều khiển chuột/cảm ứng/phím tắt và khởi chạy
@@ -41,7 +42,10 @@ bep-pho-logistics/
 - Số ghế theo cấp Phòng Ăn (Lv.1: 4 ghế, Lv.2: 6, Lv.4: 8). Uy tín càng cao khách đến càng đông.
 - **Bếp** cần nước dùng: mỗi bát dùng 1 phần từ nồi. Hết nồi thì nhân viên tự ninh nồi mới (tốn Kho, mất vài giây); có thể ninh sớm trong bảng Bếp.
 - **Bồn rửa** đầy bát bẩn thì bếp dừng. Nhân viên bếp rửa chậm; nhấn bong bóng 🧽 trên Bếp để rửa nhanh.
-- Thông số nằm ở `GAME_CONFIG.restaurant` trong `js/config.js`.
+- **Nhân viên** mỗi người có tên và một tính cách (Chăm chỉ, Nhanh nhẹn, Chu đáo, Hay ngủ gật). Bồi bàn ở Phòng Ăn tự lấy bát ở quầy và bưng ra tận bàn. Người hay ngủ gật thỉnh thoảng gục xuống: nhấn bong bóng 💤 trên phòng để đánh thức.
+- **Người rửa bát** thuê riêng trong bảng Bếp (tối đa 2 mỗi bếp), rửa bát bẩn liên tục.
+- **Kho nguyên liệu** có sức chứa; kho đầy thì Kho Nguyên Liệu tạm ngừng nhập.
+- Thông số nằm ở `GAME_CONFIG.restaurant` và `GAME_CONFIG.staff` trong `js/config.js`.
 
 ## Hướng dẫn Mở rộng Game
 

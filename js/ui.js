@@ -20,7 +20,7 @@ function updateHUD() {
   const gridSize = getGridSize();
   const maxPlots = gridSize * gridSize;
   document.getElementById('stat-coins').textContent = state.coins.toLocaleString('vi-VN');
-  document.getElementById('stat-ingredients').textContent = state.ingredients;
+  document.getElementById('stat-ingredients').textContent = `${state.ingredients}/${getIngredientCap()}`;
   document.getElementById('stat-dishes').textContent = state.dishes;
   document.getElementById('stat-parcels').textContent = state.parcels;
   document.getElementById('stat-rep').textContent = state.rep;
@@ -340,6 +340,9 @@ function getRoomStatusInfo(room) {
   if (missing) {
     return { cls: warnCls, text: `⚠️ Đang tạm dừng: ${missing.label} (${missing.detail || `Cần ${missing.needed}, hiện có ${missing.current}`})` };
   }
+  if (isStorageRoom(room) && (state.ingredients || 0) >= getIngredientCap()) {
+    return { cls: okCls, text: `✅ Kho đã đầy ${state.ingredients}/${getIngredientCap()}, tạm ngừng nhập hàng` };
+  }
   if (room.type === 'kitchen' && (state.dishes || 0) >= getDishCounterCap()) {
     return { cls: okCls, text: `✅ Quầy đã đủ ${state.dishes} bát, bếp chờ khách gọi thêm` };
   }
@@ -363,9 +366,11 @@ function getKitchenPanelHtml() {
         <div class="h-1.5 bg-stone-200 rounded-full overflow-hidden"><div id="kp-sink-bar" class="h-full bg-sky-600 rounded-full transition-all duration-150"></div></div>
       </div>
       <div class="text-[11px] text-stone-500" id="kp-counter-text"></div>
+      <div class="text-[11px] text-stone-500" id="kp-washer-text"></div>
       <div class="grid grid-cols-2 gap-2">
         <button id="btn-kp-broth" class="btn-ghost py-1.5 rounded-xl text-[11px] font-bold">Ninh nồi mới (${GAME_CONFIG.restaurant.broth.ingredientCost} Kho)</button>
         <button id="btn-kp-wash" class="btn-ghost py-1.5 rounded-xl text-[11px] font-bold">Rửa ${GAME_CONFIG.restaurant.sink.washPerTap} bát</button>
+        <button id="btn-kp-washer" class="btn-primary col-span-2 py-1.5 rounded-xl text-[11px] font-bold">🧽 Thuê người rửa bát (${GAME_CONFIG.staff.washerCost} Xu)</button>
       </div>
     </div>`;
 }
@@ -389,6 +394,14 @@ function updateKitchenPanel() {
   const brothBtn = document.getElementById('btn-kp-broth');
   brothBtn.disabled = state.brothCooking > 0 || broth >= cap || (state.ingredients || 0) < GAME_CONFIG.restaurant.broth.ingredientCost;
   document.getElementById('btn-kp-wash').disabled = dirty <= 0;
+  const washers = getWasherCount();
+  const maxW = GAME_CONFIG.staff.maxWashersPerKitchen * getKitchenRooms().length;
+  document.getElementById('kp-washer-text').textContent = washers > 0
+    ? `Người rửa bát: ${washers}/${maxW} · rửa ${(getAwakeWasherCount() * GAME_CONFIG.staff.washerBowlsPerSec * 60).toFixed(0)} bát/phút`
+    : 'Chưa có người rửa bát riêng, đầu bếp rửa tranh thủ rất chậm.';
+  const washerBtn = document.getElementById('btn-kp-washer');
+  washerBtn.disabled = washers >= maxW || state.coins < GAME_CONFIG.staff.washerCost;
+  washerBtn.textContent = washers >= maxW ? '🧽 Đã đủ người rửa bát' : `🧽 Thuê người rửa bát (${GAME_CONFIG.staff.washerCost} Xu)`;
 }
 
 function renderDrawer() {
@@ -592,6 +605,7 @@ function renderDrawer() {
         </button>
       </div>
       ${room.type === 'kitchen' ? getKitchenPanelHtml() : ''}
+      ${getCrewListHtml(room)}
 
       ${mergeHtml}
       ${synergyHtml}
@@ -656,8 +670,12 @@ function renderDrawer() {
     if (room.type === 'kitchen') {
       document.getElementById('btn-kp-broth').addEventListener('click', () => { startBrothPot(true); updateKitchenPanel(); });
       document.getElementById('btn-kp-wash').addEventListener('click', () => { washBowlsByHand(); updateSelectedRoomProgressOnly(room); });
+      document.getElementById('btn-kp-washer').addEventListener('click', () => { if (hireWasher(room)) renderDrawer(); });
       updateKitchenPanel();
     }
+
+    const wakeBtn = document.getElementById('btn-wake-crew');
+    if (wakeBtn) wakeBtn.addEventListener('click', () => { wakeRoomCrew(room); renderDrawer(); });
 
     const drawerMenuBtn = document.getElementById('btn-drawer-menu');
     if (drawerMenuBtn) {
@@ -707,6 +725,8 @@ function renderDrawer() {
       state.coins -= staffCost;
       room.staff += 1;
       rebuildRooms3D();
+      const newcomer = room.crew[room.crew.length - 1];
+      if (newcomer) showToast(`👋 ${newcomer.name} (${getStaffTrait(newcomer.trait).name}) gia nhập ${cfg.name}!`);
       SoundFX.upgrade();
       spawnFloater(room.gx, room.gy, '+1 Nhân sự · +20 EXP', '#266E56');
       showToast(`Đã tuyển thêm nhân viên cho ${cfg.name}! (+20 EXP)`);

@@ -87,6 +87,16 @@ function getDishCounterCap() {
   return scaleByKitchen(c.baseCap, c.capPerLevel);
 }
 
+function isStorageRoom(room) {
+  return room.type === 'warehouse' || room.type === 'cold_storage';
+}
+
+function getIngredientCap() {
+  const c = GAME_CONFIG.restaurant.storage;
+  const levels = state.rooms.filter(isStorageRoom).reduce((s, r) => s + (r.level || 1), 0);
+  return c.baseCap + c.perStorageLevel * Math.max(1, levels);
+}
+
 function getBrothSimmerTime() {
   return GAME_CONFIG.restaurant.broth.simmerSec;
 }
@@ -155,7 +165,8 @@ function updateKitchenSupport(effDt) {
   // a busy lunch fills the sink unless the player helps.
   const staff = kitchens.reduce((s, r) => s + (r.staff || 0), 0);
   if ((state.dirtyBowls || 0) > 0) {
-    washBowls(staff * c.sink.autoWashPerStaffSec * effDt);
+    const rate = staff * c.sink.autoWashPerStaffSec + getAwakeWasherCount() * GAME_CONFIG.staff.washerBowlsPerSec;
+    washBowls(rate * effDt);
   }
 }
 
@@ -209,7 +220,7 @@ function spawnCustomerFor(room, forceVip = false) {
   mesh.position.set(startX, SIDEWALK_Y, laneZ);
   customersGroup.add(mesh);
 
-  const patience = c.queuePatienceSec * (1 + 0.25 * getPerkBonus('warm_hospitality'));
+  const patience = c.queuePatienceSec * (1 + 0.25 * getPerkBonus('warm_hospitality')) * getCrewPatienceMult(room);
   const customer = {
     mesh,
     bowl,
@@ -250,6 +261,8 @@ function inviteCustomer(room) {
 // ---- Customer life cycle --------------------------------------------------
 function removeCustomer(idx) {
   const c = diningCustomers[idx];
+  if (c.dishReserved) state.dishes = (state.dishes || 0) + 1; // bowl goes back to the counter
+  if (c.waiter && c.waiter.task && c.waiter.task.customer === c) c.waiter.task = null;
   disposeObject3D(c.mesh);
   customersGroup.remove(c.mesh);
   diningCustomers.splice(idx, 1);
@@ -278,6 +291,12 @@ function buildExitPath(c) {
 }
 
 function sendCustomerHome(c) {
+  if (c.dishReserved) {
+    state.dishes = (state.dishes || 0) + 1; // unserved bowl goes back to the counter
+    c.dishReserved = false;
+  }
+  if (c.waiter && c.waiter.task && c.waiter.task.customer === c) c.waiter.task = null;
+  c.waiter = null;
   if (c.mesh.userData.seated) {
     setSeatedPose(c, false);
     c.mesh.position.y = FLOOR_Y;
@@ -420,19 +439,27 @@ function updateCustomers(effDt, phase) {
         c.mesh.rotation.y = seat.rotY;
         setSeatedPose(c, true);
         c.stage = 'waitFood';
-        c.timer = cfg.serveDelaySec / (1 + 0.2 * Math.max(0, (room.staff || 1) - 1));
-        c.patience = cfg.foodPatienceSec * (1 + 0.25 * getPerkBonus('warm_hospitality'));
+        c.waiter = null;
+        c.dishReserved = false;
+        c.patience = cfg.foodPatienceSec * (1 + 0.25 * getPerkBonus('warm_hospitality')) * getCrewPatienceMult(room);
         c.maxPatience = c.patience;
       }
     } else if (c.stage === 'waitFood') {
-      c.timer -= effDt;
-      if (c.timer <= 0 && (state.dishes || 0) >= 1) {
-        state.dishes -= 1;
-        c.bowl.visible = true;
-        c.stage = 'eating';
-        c.timer = cfg.eatSec * (0.85 + Math.random() * 0.3);
-        if (Math.random() < 0.5) spawnSteamAt(c.mesh.position);
-      } else {
+      // A waiter takes a bowl from the counter and carries it to the table (see updateWaiters).
+      const agents = getRoomAgents(room);
+      if (c.waiter && !agents.includes(c.waiter)) c.waiter = null; // room was rebuilt
+      if (!c.waiter && (c.dishReserved || (state.dishes || 0) >= 1)) {
+        const waiter = agents.find(a => a.waiter && !a.task && !(a.crew && a.crew.dozing));
+        if (waiter) {
+          if (!c.dishReserved) {
+            state.dishes -= 1;
+            c.dishReserved = true;
+          }
+          c.waiter = waiter;
+          waiter.task = { customer: c, phase: 'pickup' };
+        }
+      }
+      if (!c.waiter) {
         c.patience -= effDt;
         if (c.patience <= 0) customerLeavesAngry(c);
       }
@@ -460,6 +487,8 @@ function updateCustomers(effDt, phase) {
     }
   }
 
+  updateWaiters(effDt);
+
   // Room status: occupancy bar, and a warning when seated guests wait on the kitchen.
   for (const room of venues) {
     const occ = getVenueOccupancy(room);
@@ -468,6 +497,85 @@ function updateCustomers(effDt, phase) {
     room.starved = waitingNoFood;
     room.missingLabel = waitingNoFood ? 'Khách đang chờ món' : '';
   }
+}
+
+// ---- Waiters ---------------------------------------------------------------
+// Dining room agents are waiters: they wait at the counter, pick up a bowl,
+// walk it to the customer's table and come back. Positions are room-local.
+function getRoomAgents(room) {
+  const entry = roomMeshesMap.get(`${room.gx}_${room.gy}`);
+  return entry ? entry.agents : [];
+}
+
+function getWaiterHome(idx) {
+  return { x: -0.6 + idx * 0.3, z: -0.92 };
+}
+
+function moveAgentLocal(a, tx, tz, effDt) {
+  const dx = tx - a.mesh.position.x;
+  const dz = tz - a.mesh.position.z;
+  const dist = Math.hypot(dx, dz);
+  if (dist < 0.06) {
+    a.mesh.position.x = tx;
+    a.mesh.position.z = tz;
+    a.mesh.position.y = 0;
+    a.mesh.userData.legL.rotation.x = 0;
+    a.mesh.userData.legR.rotation.x = 0;
+    return true;
+  }
+  const step = Math.min(dist, effDt * GAME_CONFIG.staff.waiterSpeed * getCrewSpeedMult(a.crew));
+  a.mesh.position.x += (dx / dist) * step;
+  a.mesh.position.z += (dz / dist) * step;
+  a.mesh.rotation.y = Math.atan2(dx, dz);
+  a.phase += effDt * 11;
+  a.mesh.position.y = Math.abs(Math.sin(a.phase)) * 0.05;
+  a.mesh.userData.legL.rotation.x = Math.sin(a.phase) * 0.45;
+  a.mesh.userData.legR.rotation.x = -Math.sin(a.phase) * 0.45;
+  return false;
+}
+
+function updateWaiters(effDt) {
+  const cfg = GAME_CONFIG.restaurant.customers;
+  roomMeshesMap.forEach((entry) => {
+    if (!isVenueRoom(entry.room)) return;
+    const seats = getDiningSeats(entry.room.level);
+    entry.agents.forEach((a, idx) => {
+      if (!a.waiter) return;
+      if (a.crew && a.crew.dozing) return; // napping: frozen in place (pose set in simulation)
+      const task = a.task;
+      if (!task) {
+        const home = getWaiterHome(idx);
+        if (moveAgentLocal(a, home.x, home.z, effDt)) a.mesh.rotation.y = Math.PI;
+        return;
+      }
+      const c = task.customer;
+      if (task.phase === 'pickup') {
+        // Step up to the counter to collect the bowl.
+        if (moveAgentLocal(a, 0.15 + (idx % 3 - 1) * 0.35, -0.9, effDt)) {
+          task.phase = 'deliver';
+          if (a.carry) a.carry.visible = true;
+        }
+      } else if (task.phase === 'deliver') {
+        const seat = seats[c.seatIdx];
+        const stillWaiting = diningCustomers.includes(c) && c.stage === 'waitFood' && c.waiter === a && seat;
+        if (!stillWaiting) {
+          if (a.carry) a.carry.visible = false;
+          a.task = null;
+          return;
+        }
+        if (moveAgentLocal(a, seat.x, seat.z + 0.42, effDt)) {
+          if (a.carry) a.carry.visible = false;
+          c.bowl.visible = true;
+          c.dishReserved = false;
+          c.waiter = null;
+          c.stage = 'eating';
+          c.timer = cfg.eatSec * (0.85 + Math.random() * 0.3);
+          if (Math.random() < 0.5) spawnSteamAt(c.mesh.position);
+          a.task = null;
+        }
+      }
+    });
+  });
 }
 
 function spawnSteamAt(pos) {

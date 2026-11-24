@@ -283,6 +283,10 @@
     .room-chore-btn.opportunity {
       animation: none;
     }
+    .room-staff-btn {
+      background: #5B5FA8 !important;
+      box-shadow: 0 4px 10px rgba(91, 95, 168, 0.32) !important;
+    }
     .room-chore-btn:disabled {
       background: #8A725C;
       box-shadow: none;

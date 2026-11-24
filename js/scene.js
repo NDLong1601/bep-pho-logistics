@@ -50,10 +50,12 @@ scene.add(fillLight);
 
 // Groups
 const groundGroup = new THREE.Group();
+const streetGroup = new THREE.Group();
 const roomsGroup = new THREE.Group();
+const worldAgentsGroup = new THREE.Group();
 const synergyLinesGroup = new THREE.Group();
 const effectsGroup = new THREE.Group();
-scene.add(groundGroup, roomsGroup, synergyLinesGroup, effectsGroup);
+scene.add(groundGroup, streetGroup, roomsGroup, worldAgentsGroup, synergyLinesGroup, effectsGroup);
 
 // Raycasting & Plot meshes
 const raycaster = new THREE.Raycaster();
@@ -66,6 +68,11 @@ const activeFloaters = [];
 const steamPuffs = [];
 const synergyPulses = [];
 const popAnimMap = new Map();
+const streetLampMats = [];
+const streetVehicles = [];
+const streetWalkers = [];
+const roamingStaff = [];
+let streetMetrics = { sidewalkZ: 10, roadZ: 13, halfSpan: 14 };
 const sharedSteamGeo = new THREE.SphereGeometry(0.12, 8, 8);
 sharedSteamGeo.userData = { shared: true };
 
@@ -194,6 +201,10 @@ function updateDayNightLighting(dt) {
     }
   });
 
+  for (const mat of streetLampMats) {
+    mat.emissiveIntensity = 0.18 + lanternGlow * 0.95;
+  }
+
   if (document.body.dataset.dayPhase !== phase.id) {
     document.body.dataset.dayPhase = phase.id;
   }
@@ -249,10 +260,10 @@ function buildGroundGrid() {
   const tileGeo = new THREE.BoxGeometry(GAME_CONFIG.TILE_SIZE, 0.08, GAME_CONFIG.TILE_SIZE);
   const edgeGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(GAME_CONFIG.TILE_SIZE - 0.04, 0.09, GAME_CONFIG.TILE_SIZE - 0.04));
 
-  // Outer decorative grid lines (2 rings outside buildable area like reference image)
+  // Outer decorative grid lines (skip +Z side where the 3D street & sidewalk sit)
   const pad = 2;
   for (let gx = -pad; gx < gridSize + pad; gx++) {
-    for (let gy = -pad; gy < gridSize + pad; gy++) {
+    for (let gy = -pad; gy < gridSize; gy++) {
       const inBounds = gx >= 0 && gx < gridSize && gy >= 0 && gy < gridSize;
       const pos = gridToWorld3D(gx, gy);
 
@@ -286,6 +297,127 @@ function buildGroundGrid() {
       }
     }
   }
+
+  buildStreetScene();
+}
+
+function buildStreetScooter(bodyColor) {
+  const sc = new THREE.Group();
+  addBox(sc, 0.64, 0.22, 0.26, 0, 0.28, 0, bodyColor, { roughness: 0.4 });
+  addBox(sc, 0.08, 0.36, 0.08, 0.24, 0.48, 0, 0x3A4046);
+  addBox(sc, 0.06, 0.05, 0.32, 0.24, 0.66, 0, 0x2B3036);
+  addBox(sc, 0.06, 0.10, 0.12, 0.33, 0.46, 0, 0xFFF4B8, { emissive: 0xFFE07D, emissiveIntensity: 0.8 });
+  [-0.22, 0.22].forEach((wx) => {
+    const wheel = addCyl(sc, 0.13, 0.13, 0.08, wx, 0.13, 0, 0x25282C);
+    wheel.rotation.x = Math.PI / 2;
+  });
+  // Rider
+  addCyl(sc, 0.13, 0.15, 0.34, -0.04, 0.56, 0, 0x455A64);
+  const helmet = new THREE.Mesh(
+    new THREE.SphereGeometry(0.14, 12, 10),
+    new THREE.MeshStandardMaterial({ color: 0xF2C94C, roughness: 0.4 })
+  );
+  helmet.position.set(-0.02, 0.84, 0);
+  sc.add(helmet);
+  return sc;
+}
+
+function buildStreetScene() {
+  while (streetGroup.children.length) {
+    const child = streetGroup.children[0];
+    disposeObject3D(child);
+    streetGroup.remove(child);
+  }
+  streetLampMats.length = 0;
+  streetVehicles.length = 0;
+
+  const gridSize = getGridSize();
+  const step = GAME_CONFIG.TILE_SIZE + GAME_CONFIG.TILE_GAP;
+  const frontRowCenterZ = ((gridSize - 1) / 2) * step;
+  const frontEdgeZ = frontRowCenterZ + GAME_CONFIG.TILE_SIZE / 2;
+
+  const spanX = (gridSize + 3.2) * step;
+  const sidewalkW = 2.05;
+  const roadW = 3.35;
+  const sidewalkZ = frontEdgeZ + sidewalkW / 2 + 0.06;
+  const roadZ = sidewalkZ + sidewalkW / 2 + roadW / 2;
+  streetMetrics = { sidewalkZ, roadZ, halfSpan: spanX / 2, frontEdgeZ };
+
+  // Warm tiled Vietnamese sidewalk
+  const swTex = makeFloorTexture('tile', '#E7DFD3');
+  swTex.wrapS = THREE.RepeatWrapping;
+  swTex.wrapT = THREE.RepeatWrapping;
+  addBox(streetGroup, spanX, 0.14, sidewalkW, 0, 0.03, sidewalkZ, 0xFFFFFF, { map: swTex, roughness: 0.85, castShadow: false });
+  // Stone curb between sidewalk and asphalt
+  addBox(streetGroup, spanX, 0.16, 0.14, 0, 0.04, sidewalkZ + sidewalkW / 2, 0xABA297, { roughness: 0.8 });
+
+  // Asphalt 2-lane street
+  addBox(streetGroup, spanX, 0.08, roadW, 0, -0.02, roadZ, 0x454B54, { roughness: 0.9, castShadow: false });
+  // Far-side curb trim
+  addBox(streetGroup, spanX, 0.15, 0.36, 0, 0.03, roadZ + roadW / 2 + 0.16, 0xD2C8BC, { roughness: 0.85 });
+
+  // Dashed center lane markings
+  for (let lx = -spanX / 2 + 1.2; lx < spanX / 2 - 1.0; lx += 2.1) {
+    if (Math.abs(lx) < 1.8) continue; // leave gap for zebra crosswalk
+    addBox(streetGroup, 0.95, 0.02, 0.10, lx, 0.025, roadZ, 0xF2C94C, { castShadow: false });
+  }
+
+  // Zebra Crosswalk leading to restaurant entrance
+  for (let cz = -1.2; cz <= 1.2; cz += 0.48) {
+    addBox(streetGroup, 1.55, 0.022, 0.24, 0, 0.026, roadZ + cz, 0xF7F5F0, { castShadow: false });
+  }
+
+  // Welcoming Entrance Archway & Red Carpet Mat on Sidewalk
+  addBox(streetGroup, 1.95, 0.03, 0.95, 0, 0.11, sidewalkZ - 0.35, 0xC86234);
+  const arch = new THREE.Group();
+  arch.position.set(0, 0.10, sidewalkZ + 0.62);
+  addBox(arch, 0.14, 2.25, 0.14, -1.05, 1.12, 0, 0x7A4B2E);
+  addBox(arch, 0.14, 2.25, 0.14, 1.05, 1.12, 0, 0x7A4B2E);
+  addBox(arch, 2.46, 0.28, 0.24, 0, 2.28, 0, 0x8E5B36);
+  addBox(arch, 1.75, 0.34, 0.12, 0, 2.28, 0.10, 0xFFF3D6, { emissive: 0xFF9F43, emissiveIntensity: 0.45 });
+  streetGroup.add(arch);
+
+  // Waiting bench & A-frame sidewalk menu board
+  addBox(streetGroup, 1.15, 0.08, 0.38, -2.35, 0.36, sidewalkZ - 0.42, 0x9C6B43);
+  addBox(streetGroup, 1.15, 0.30, 0.06, -2.35, 0.54, sidewalkZ - 0.58, 0x8A5A35);
+  addBox(streetGroup, 0.08, 0.28, 0.34, -2.82, 0.22, sidewalkZ - 0.42, 0x3D3530);
+  addBox(streetGroup, 0.08, 0.28, 0.34, -1.88, 0.22, sidewalkZ - 0.42, 0x3D3530);
+  // A-frame menu board
+  addBox(streetGroup, 0.42, 0.58, 0.06, 1.68, 0.38, sidewalkZ + 0.25, 0x332A24, { rotY: -0.25 });
+  addBox(streetGroup, 0.32, 0.42, 0.02, 1.68, 0.40, sidewalkZ + 0.29, 0xF5E7D3, { rotY: -0.25 });
+
+  // Classic Phố Cổ Streetlamps & Sidewalk Trees
+  const lampOffsets = [-spanX * 0.34, -3.6, 3.6, spanX * 0.34];
+  lampOffsets.forEach((lx, idx) => {
+    addCyl(streetGroup, 0.05, 0.08, 2.35, lx, 1.25, sidewalkZ + 0.72, 0x2C3238, { metalness: 0.5 });
+    addBox(streetGroup, 0.36, 0.05, 0.05, lx, 2.40, sidewalkZ + 0.72, 0x2C3238);
+    const bulbMat = new THREE.MeshStandardMaterial({
+      color: 0xFFF6D6,
+      emissive: 0xFFA940,
+      emissiveIntensity: 0.25,
+      roughness: 0.25
+    });
+    streetLampMats.push(bulbMat);
+    const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.15, 12, 10), bulbMat);
+    bulb.position.set(lx, 2.28, sidewalkZ + 0.72);
+    streetGroup.add(bulb);
+
+    if (idx % 2 === 0) {
+      addPlant(streetGroup, lx + (idx === 0 ? 1.4 : -1.4), sidewalkZ + 0.65, 1.15);
+    }
+  });
+
+  // Passing street scooters on both lanes
+  const scooterCols = [0xD65A42, 0x2F7D63, 0x3E84A8];
+  scooterCols.forEach((col, i) => {
+    const dir = i % 2 === 0 ? 1 : -1;
+    const sc = buildStreetScooter(col);
+    const laneZ = roadZ + (dir > 0 ? 0.76 : -0.76);
+    sc.position.set(-spanX * 0.35 + i * 7.5, 0.02, laneZ);
+    if (dir < 0) sc.rotation.y = Math.PI;
+    streetGroup.add(sc);
+    streetVehicles.push({ mesh: sc, dir, speed: 3.2 + i * 0.55 });
+  });
 }
 
 // Reusable 3D Builder Helpers
@@ -451,8 +583,8 @@ function updateCameraTransform() {
 function resetCamera() {
   const w = canvas.parentElement.clientWidth;
   const scale = getGridSize() / 4;
-  viewSize = (w < 640 ? 22 : (w < 1024 ? 17.5 : 14.8)) * scale;
-  camTarget.set(0, 0.4, 0);
+  viewSize = (w < 640 ? 24 : (w < 1024 ? 19.2 : 16.5)) * scale;
+  camTarget.set(0, 0.35, 1.1 * scale);
   camYawIndex = 0;
   camYawGoal = Math.PI / 4;
   updateCameraProjection();

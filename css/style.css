@@ -180,6 +180,18 @@
       font-weight: 800;
       line-height: 1;
     }
+    .room-tag-merge:not(.hidden) {
+      display: inline-flex;
+      align-items: center;
+      padding: 0 4px;
+      height: 14px;
+      border-radius: 999px;
+      background: rgba(47, 125, 99, 0.16);
+      color: #1F5E49;
+      font-size: 9px;
+      font-weight: 800;
+      line-height: 1;
+    }
     .room-tag-warn:not(.hidden) {
       display: block;
       font-size: 9.5px;

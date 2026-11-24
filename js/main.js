@@ -331,18 +331,14 @@ document.getElementById('btn-confirm-import').addEventListener('click', () => {
   try {
     const parsed = JSON.parse(document.getElementById('import-textarea').value.trim());
     if (!parsed || !Array.isArray(parsed.rooms)) throw new Error('invalid');
-    state = Object.assign(createInitialState(), parsed);
-    if (typeof state.dailyEarned !== 'number') state.dailyEarned = 0;
-    if (typeof state.expressCooldown !== 'number') state.expressCooldown = 4;
-    if (state.expressOrder && typeof state.expressOrder.timeLeft !== 'number') state.expressOrder = null;
-    if (typeof state.gridSize !== 'number' || state.gridSize < 4 || state.gridSize > 6) state.gridSize = 4;
-    if (!GAME_CONFIG.menus || !GAME_CONFIG.menus[state.activeMenu]) state.activeMenu = 'pho_bo';
+    state = normalizeLoadedState(parsed);
     lastDayPhaseId = null;
     closeInspector();
     buildGroundGrid();
     rebuildRooms3D();
     resetCamera();
     updateHUD();
+    renderTicketRail();
     updateContractUI();
     saveGame(false);
     showToast('Đã khôi phục dữ liệu thành công!');
@@ -351,6 +347,14 @@ document.getElementById('btn-confirm-import').addEventListener('click', () => {
     showToast('Mã JSON không hợp lệ, vui lòng kiểm tra lại.');
   }
 });
+
+const autoDayToggle = document.getElementById('toggle-auto-day');
+if (autoDayToggle) {
+  autoDayToggle.addEventListener('change', (e) => {
+    state.autoNextDay = !!e.target.checked;
+    saveGame(false);
+  });
+}
 
 let resetArmed = false;
 document.getElementById('btn-reset-game').addEventListener('click', (e) => {
@@ -371,6 +375,7 @@ document.getElementById('btn-reset-game').addEventListener('click', (e) => {
   buildGroundGrid();
   rebuildRooms3D();
   updateHUD();
+  renderTicketRail();
   updateContractUI();
   resetCamera();
   saveGame(false);
@@ -381,7 +386,11 @@ document.getElementById('btn-reset-game').addEventListener('click', (e) => {
 
 window.addEventListener('keydown', (e) => {
   if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
-  if (e.code === 'Space') { e.preventDefault(); document.getElementById('btn-pause').click(); }
+  const dayModalOpen = !document.getElementById('day-summary-modal')?.classList.contains('hidden');
+  if (e.code === 'Space') {
+    e.preventDefault();
+    if (!dayModalOpen) document.getElementById('btn-pause').click();
+  }
   else if (e.key === '1') { gameSpeed = 1; document.getElementById('btn-speed').textContent = '1x'; document.getElementById('btn-speed').classList.remove('active'); }
   else if (e.key === '2') { gameSpeed = 2; document.getElementById('btn-speed').textContent = '2x'; document.getElementById('btn-speed').classList.add('active'); }
   else if (e.key === 'q' || e.key === 'Q') { document.getElementById('btn-rotate').click(); }
@@ -421,6 +430,7 @@ window.onload = () => {
   rebuildRooms3D();
   resetCamera();
   updateHUD();
+  renderTicketRail();
   updateContractUI();
   if (pendingOfflineCoins > 0) {
     const mins = Math.max(1, Math.round(pendingOfflineSec / 60));

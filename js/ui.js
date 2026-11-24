@@ -62,6 +62,181 @@ function updateHUD() {
         ? 'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-amber-500/20 text-amber-900'
         : 'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-stone-500/12 text-stone-700');
   }
+
+  updateTicketMetaBadges();
+  if (typeof updateTicketRailProgress === 'function') updateTicketRailProgress();
+
+  const perksBox = document.getElementById('active-perks-box');
+  const perksList = document.getElementById('active-perks-list');
+  if (perksBox && perksList) {
+    const entries = Object.entries(state.perks || {}).filter(([, lv]) => lv > 0);
+    perksBox.classList.toggle('hidden', entries.length === 0);
+    if (entries.length > 0) {
+      perksList.innerHTML = entries.map(([id, lv]) => {
+        const card = (GAME_CONFIG.perkCards || []).find(c => c.id === id);
+        if (!card) return '';
+        return `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white border border-amber-300/70 text-[11px] font-semibold text-stone-800">${card.icon} ${card.name} <strong>Lv.${lv}</strong></span>`;
+      }).join('');
+    }
+  }
+}
+
+function updateTicketMetaBadges() {
+  const comboEl = document.getElementById('combo-badge');
+  const upkeepEl = document.getElementById('upkeep-badge');
+  if (comboEl) {
+    const mult = getComboMultiplier();
+    comboEl.textContent = `🔥 Combo ${mult.toFixed(1)}x`;
+    comboEl.className = mult >= 2.0 ? 'text-rose-700 font-extrabold' : (mult > 1.0 ? 'text-amber-700 font-bold' : 'text-stone-600 font-semibold');
+  }
+  if (upkeepEl) {
+    upkeepEl.textContent = `💸 -${getDailyUpkeep()}/ngày`;
+  }
+}
+
+function renderTicketRail() {
+  const rail = document.getElementById('ticket-rail');
+  if (!rail) return;
+  updateTicketMetaBadges();
+
+  const tickets = state.tickets || [];
+  if (!tickets.length) {
+    rail.innerHTML = `<div class="hud-glass rounded-xl px-3 py-1.5 text-[11px] text-stone-500">⏳ Đang chờ khách gọi món...</div>`;
+    return;
+  }
+
+  rail.innerHTML = tickets.map((t) => {
+    const rem = Math.max(1, t.amount - (t.delivered || 0));
+    const canServe = (state[t.resource] || 0) >= rem;
+    const pct = Math.max(0, Math.min(100, Math.round((t.timeLeft / t.maxTime) * 100)));
+    const isUrgent = pct <= 25;
+    const resIcon = t.resource === 'dishes' ? '🍲' : '📦';
+    const progressText = t.delivered > 0 ? `${t.delivered}/${t.amount}` : `${t.amount}`;
+    const barColor = isUrgent ? 'bg-rose-500' : (pct <= 55 ? 'bg-amber-500' : 'bg-emerald-600');
+
+    return `
+      <button type="button" data-ticket-id="${t.id}" class="order-ticket text-left ${t.vip ? 'vip' : ''} ${canServe ? 'ready' : ''} ${isUrgent ? 'urgent' : ''}" title="Nhấn để phục vụ ngay (+25% Tip)">
+        <div class="flex items-center justify-between gap-1.5 text-[11px] font-bold text-stone-900">
+          <span class="truncate">${t.icon} ${t.title}</span>
+          <span class="ticket-time tabular-nums ${isUrgent ? 'text-rose-600' : 'text-stone-500'}">${Math.max(1, Math.ceil(t.timeLeft))}s</span>
+        </div>
+        <div class="flex items-center justify-between gap-1.5 mt-1 text-[10.5px]">
+          <span class="font-semibold ${canServe ? 'text-emerald-700' : 'text-stone-600'}">${resIcon} ${progressText} ${RESOURCE_LABELS[t.resource] || ''}</span>
+          <span class="font-bold text-amber-800">+${t.reward}Xu</span>
+        </div>
+        <div class="mt-1.5 h-1 bg-stone-900/10 rounded-full overflow-hidden">
+          <div class="ticket-bar h-full ${barColor} rounded-full transition-all duration-150" style="width:${pct}%"></div>
+        </div>
+      </button>
+    `;
+  }).join('');
+
+  rail.querySelectorAll('[data-ticket-id]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = Number(btn.getAttribute('data-ticket-id'));
+      fulfillTicket(id, true, false);
+    });
+  });
+}
+
+function updateTicketRailProgress() {
+  const rail = document.getElementById('ticket-rail');
+  if (!rail) return;
+  for (const t of (state.tickets || [])) {
+    const el = rail.querySelector(`[data-ticket-id="${t.id}"]`);
+    if (!el) continue;
+    const pct = Math.max(0, Math.min(100, Math.round((t.timeLeft / t.maxTime) * 100)));
+    const isUrgent = pct <= 25;
+    const rem = Math.max(1, t.amount - (t.delivered || 0));
+    const canServe = (state[t.resource] || 0) >= rem;
+
+    el.classList.toggle('urgent', isUrgent);
+    el.classList.toggle('ready', canServe);
+    const timeEl = el.querySelector('.ticket-time');
+    if (timeEl) {
+      timeEl.textContent = `${Math.max(1, Math.ceil(t.timeLeft))}s`;
+      timeEl.className = `ticket-time tabular-nums ${isUrgent ? 'text-rose-600' : 'text-stone-500'}`;
+    }
+    const barEl = el.querySelector('.ticket-bar');
+    if (barEl) {
+      barEl.style.width = `${pct}%`;
+      barEl.className = `ticket-bar h-full rounded-full transition-all duration-150 ${isUrgent ? 'bg-rose-500' : (pct <= 55 ? 'bg-amber-500' : 'bg-emerald-600')}`;
+    }
+  }
+}
+
+let wasPausedBeforeSummary = false;
+
+function openDaySummaryModal(dayReport, choices) {
+  const modalEl = document.getElementById('day-summary-modal');
+  if (!modalEl) return;
+
+  wasPausedBeforeSummary = isPaused;
+  isPaused = true;
+
+  document.getElementById('summary-day-num').textContent = dayReport.day;
+  document.getElementById('summary-orders').textContent = `Hoàn thành ${dayReport.completed} đơn · Khách bỏ về ${dayReport.failed}`;
+
+  const stars = (dayReport.failed === 0 && dayReport.netProfit >= 0) ? '⭐⭐⭐' : (dayReport.failed <= 1 ? '⭐⭐' : '⭐');
+  document.getElementById('summary-stars').textContent = stars;
+
+  document.getElementById('sum-gross').textContent = `+${dayReport.grossSales.toLocaleString('vi-VN')} Xu`;
+  document.getElementById('sum-tips').textContent = `+${dayReport.tips.toLocaleString('vi-VN')} Xu`;
+  document.getElementById('sum-upkeep').textContent = `-${(dayReport.upkeep + dayReport.penalties).toLocaleString('vi-VN')} Xu`;
+
+  const netEl = document.getElementById('sum-net');
+  netEl.textContent = `${dayReport.netProfit >= 0 ? '+' : ''}${dayReport.netProfit.toLocaleString('vi-VN')} Xu`;
+  netEl.className = dayReport.netProfit >= 0 ? 'font-extrabold text-emerald-700 tabular-nums' : 'font-extrabold text-rose-700 tabular-nums';
+
+  const autoCb = document.getElementById('toggle-auto-day');
+  if (autoCb) autoCb.checked = !!state.autoNextDay;
+
+  const choicesBox = document.getElementById('summary-perk-choices');
+  choicesBox.innerHTML = choices.map((c) => {
+    const curLv = getPerkBonus(c.id);
+    return `
+      <button type="button" data-pick-perk="${c.id}" class="perk-card flex flex-col justify-between gap-2">
+        <div>
+          <div class="flex items-center justify-between gap-1.5">
+            <span class="text-xl">${c.icon}</span>
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900">${curLv > 0 ? `Cấp ${curLv} → ${curLv + 1}` : 'Mới'}</span>
+          </div>
+          <div class="font-bold text-xs text-stone-900 mt-1.5">${c.name}</div>
+          <p class="text-[11px] text-stone-500 mt-1 leading-snug">${c.desc}</p>
+        </div>
+        <div class="text-[11px] font-bold text-amber-800 pt-1.5 border-t border-stone-100">Chọn đặc quyền →</div>
+      </button>
+    `;
+  }).join('');
+
+  choicesBox.querySelectorAll('[data-pick-perk]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      closeDaySummaryModal(btn.getAttribute('data-pick-perk'));
+    });
+  });
+
+  modalEl.classList.remove('hidden');
+  modalEl.classList.add('flex');
+}
+
+function closeDaySummaryModal(chosenPerkId) {
+  const modalEl = document.getElementById('day-summary-modal');
+  if (chosenPerkId) {
+    const picked = applyPerkCard(chosenPerkId);
+    if (picked) {
+      if (typeof SoundFX !== 'undefined') SoundFX.reward();
+      showToast(`✨ Đã kích hoạt đặc quyền: ${picked.icon} ${picked.name}!`);
+    }
+  }
+  if (modalEl) {
+    modalEl.classList.add('hidden');
+    modalEl.classList.remove('flex');
+  }
+  isPaused = wasPausedBeforeSummary;
+  updateHUD();
+  updateContractUI();
+  if (selectedPlot) renderDrawer();
+  saveGame(false);
 }
 
 function getContractMetricValue(metric) {
@@ -252,12 +427,29 @@ function renderDrawer() {
            <button id="btn-drawer-menu" class="btn-ghost px-2 py-1 rounded-lg text-[10.5px] font-bold">Đổi</button>
          </div>`
       : '';
+    const hazardHtml = room.hazard
+      ? `<div class="bg-rose-50 border border-rose-300 rounded-2xl p-2.5 flex items-center justify-between gap-2">
+           <span class="text-[11px] font-bold text-rose-800">${room.hazard.icon} ${room.hazard.label} (${Math.max(1, Math.ceil(room.hazard.timeLeft))}s)</span>
+           <button id="btn-resolve-hazard" class="btn-primary px-2.5 py-1 rounded-lg text-[10.5px] font-bold">Xử lý</button>
+         </div>`
+      : '';
+    const activePerkEntries = Object.entries(state.perks || {}).filter(([, lv]) => lv > 0);
+    const perksHtml = activePerkEntries.length > 0
+      ? `<div class="bg-stone-50 border border-stone-200/70 rounded-2xl p-2.5 space-y-1">
+           <div class="text-[10px] font-bold uppercase tracking-wider text-stone-500">✨ Đặc quyền đang bật</div>
+           <div class="flex flex-wrap gap-1">${activePerkEntries.map(([id, lv]) => {
+             const card = (GAME_CONFIG.perkCards || []).find(c => c.id === id);
+             return card ? `<span class="px-1.5 py-0.5 rounded-full bg-white border border-stone-200 text-[10px] font-semibold text-stone-700">${card.icon} Lv.${lv}</span>` : '';
+           }).join('')}</div>
+         </div>`
+      : '';
 
     document.getElementById('drawer-icon').textContent = cfg.icon;
     document.getElementById('drawer-title').textContent = `${cfg.name} · Lv.${room.level}`;
     document.getElementById('drawer-subtitle').textContent = `${cfg.category} · ${room.staff}/${GAME_CONFIG.MAX_STAFF_PER_ROOM} nhân sự`;
 
     body.innerHTML = `
+      ${hazardHtml}
       <div class="bg-white/90 border border-stone-200/80 rounded-2xl p-3 space-y-2.5">
         <p class="text-xs text-stone-600 leading-relaxed">${cfg.desc}</p>
         <div id="drawer-room-status" class="text-xs font-semibold border rounded-xl px-2.5 py-1.5 ${statusClass}">
@@ -283,6 +475,7 @@ function renderDrawer() {
 
       ${synergyHtml}
       ${menuHtml}
+      ${perksHtml}
 
       <div class="space-y-2">
         <div class="bg-white/90 border border-stone-200/80 rounded-2xl p-3 flex items-center justify-between gap-2">
@@ -333,6 +526,11 @@ function renderDrawer() {
       drawerMenuBtn.addEventListener('click', () => {
         if (typeof openSystemModal === 'function') openSystemModal('tab-expansion');
       });
+    }
+
+    const hazardBtn = document.getElementById('btn-resolve-hazard');
+    if (hazardBtn) {
+      hazardBtn.addEventListener('click', () => resolveRoomHazard(gx, gy));
     }
 
     document.getElementById('btn-relocate-room').addEventListener('click', () => {

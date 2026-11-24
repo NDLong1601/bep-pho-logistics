@@ -368,5 +368,23 @@ const GAME_CONFIG = {
     { title: 'Chuyến giao nhanh giờ cao điểm', resource: 'parcels', baseAmount: 3, baseReward: 290, rep: 5, timeLimit: 38 },
     { title: 'Cung ứng nhanh nguyên liệu sạch', resource: 'ingredients', baseAmount: 6, baseReward: 150, rep: 3, timeLimit: 36 },
     { title: 'Đơn VIP khách sạn phố cổ', resource: 'parcels', baseAmount: 5, baseReward: 430, rep: 7, timeLimit: 45 }
+  ],
+
+  ticketTemplates: [
+    { id: 'bistro_table', title: 'Bàn Bistro', icon: '🍽️', requiresType: 'dining', resource: 'dishes', amount: 1, patience: 24, reward: 65, tip: 20, rep: 1, vip: false },
+    { id: 'tea_party', title: 'Khách Trà Chiều', icon: '☕', requiresType: 'cafe', resource: 'dishes', amount: 1, patience: 22, reward: 75, tip: 25, rep: 1, vip: false },
+    { id: 'office_delivery', title: 'Shipper Giao Phố', icon: '🛵', requiresType: 'dispatch', resource: 'parcels', amount: 1, patience: 26, reward: 125, tip: 35, rep: 2, vip: false },
+    { id: 'vip_critic', title: 'Food Reviewer VIP', icon: '👑', requiresType: 'dining', resource: 'dishes', amount: 2, patience: 20, reward: 160, tip: 60, rep: 3, vip: true },
+    { id: 'drone_express', title: 'Đơn Drone Cao Tốc', icon: '🚁', requiresType: 'drone_hub', resource: 'parcels', amount: 2, patience: 22, reward: 240, tip: 70, rep: 3, vip: false }
+  ],
+
+  perkCards: [
+    { id: 'sharp_knives', name: 'Dao Bếp Sắc Bén', icon: '🔪', desc: '+18% tốc độ chế biến & nhập kho cho Bếp Nấu, Kho.', effect: 'kitchenSpeed' },
+    { id: 'warm_hospitality', name: 'Trà Đá Miễn Phí', icon: '🫖', desc: '+25% thời gian kiên nhẫn của mọi Phiếu Order.', effect: 'patience' },
+    { id: 'tip_jar', name: 'Hộp Tip Phố Cổ', icon: '💰', desc: '+35% Tiền Tip từ khách hàng & chuỗi Combo.', effect: 'tip' },
+    { id: 'lean_operation', name: 'Tối Ưu Vận Hành', icon: '📋', desc: 'Giảm 25% chi phí lương & bảo trì cuối ngày.', effect: 'upkeep' },
+    { id: 'safe_kitchen', name: 'Bếp Chuẩn 5 Sao', icon: '🛡️', desc: 'Giảm 45% nguy cơ sự cố quá nhiệt & bàn bẩn.', effect: 'hazard' },
+    { id: 'fast_packaging', name: 'Băng Chuyền Siêu Tốc', icon: '📦', desc: '+22% tốc độ Trạm Đóng Gói, Bãi Xe & Trạm Drone.', effect: 'logisticsSpeed' },
+    { id: 'viral_brand', name: 'Tiếng Lành Đồn Xa', icon: '🌟', desc: '+15% doanh thu gốc mọi đơn & nhận ngay +5 Uy tín.', effect: 'revenue', instantRep: 5 }
   ]
 };

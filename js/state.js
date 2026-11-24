@@ -19,6 +19,16 @@ function createInitialState() {
     gridSize: 4,
     activeMenu: 'pho_bo',
     lastSavedAt: Date.now(),
+    tickets: [],
+    ticketSpawnTimer: 2.5,
+    nextTicketSeq: 1,
+    comboCount: 0,
+    dailyTips: 0,
+    dailyPenalties: 0,
+    dailyOrdersCompleted: 0,
+    dailyOrdersFailed: 0,
+    perks: {},
+    autoNextDay: false,
     rooms: [
       { gx: 1, gy: 1, type: 'warehouse', level: 1, staff: 1, progress: 0.25 },
       { gx: 2, gy: 1, type: 'kitchen', level: 1, staff: 2, progress: 0.55 },
@@ -37,6 +47,27 @@ let confirmDemolishKey = null;
 let relocateSource = null;
 let pendingOfflineCoins = 0;
 let pendingOfflineSec = 0;
+let hazardSpawnTimer = 9;
+
+function normalizeLoadedState(parsed) {
+  const s = Object.assign(createInitialState(), parsed);
+  if (typeof s.dailyEarned !== 'number') s.dailyEarned = 0;
+  if (typeof s.expressCooldown !== 'number') s.expressCooldown = 4;
+  if (s.expressOrder && typeof s.expressOrder.timeLeft !== 'number') s.expressOrder = null;
+  if (typeof s.gridSize !== 'number' || s.gridSize < 4 || s.gridSize > 6) s.gridSize = 4;
+  if (!GAME_CONFIG.menus || !GAME_CONFIG.menus[s.activeMenu]) s.activeMenu = 'pho_bo';
+  if (!Array.isArray(s.tickets)) s.tickets = [];
+  if (typeof s.ticketSpawnTimer !== 'number') s.ticketSpawnTimer = 2.5;
+  if (typeof s.nextTicketSeq !== 'number') s.nextTicketSeq = 1;
+  if (typeof s.comboCount !== 'number') s.comboCount = 0;
+  if (typeof s.dailyTips !== 'number') s.dailyTips = 0;
+  if (typeof s.dailyPenalties !== 'number') s.dailyPenalties = 0;
+  if (typeof s.dailyOrdersCompleted !== 'number') s.dailyOrdersCompleted = 0;
+  if (typeof s.dailyOrdersFailed !== 'number') s.dailyOrdersFailed = 0;
+  if (!s.perks || typeof s.perks !== 'object' || Array.isArray(s.perks)) s.perks = {};
+  s.autoNextDay = !!s.autoNextDay;
+  return s;
+}
 
 function saveGame(showMsg = false) {
   try {
@@ -54,12 +85,7 @@ function loadGame() {
     if (!raw) return;
     const parsed = JSON.parse(raw);
     if (parsed && Array.isArray(parsed.rooms) && typeof parsed.coins === 'number') {
-      state = Object.assign(createInitialState(), parsed);
-      if (typeof state.dailyEarned !== 'number') state.dailyEarned = 0;
-      if (typeof state.expressCooldown !== 'number') state.expressCooldown = 4;
-      if (state.expressOrder && typeof state.expressOrder.timeLeft !== 'number') state.expressOrder = null;
-      if (typeof state.gridSize !== 'number' || state.gridSize < 4 || state.gridSize > 6) state.gridSize = 4;
-      if (!GAME_CONFIG.menus || !GAME_CONFIG.menus[state.activeMenu]) state.activeMenu = 'pho_bo';
+      state = normalizeLoadedState(parsed);
 
       if (typeof parsed.lastSavedAt === 'number') {
         const elapsedSec = Math.floor((Date.now() - parsed.lastSavedAt) / 1000);
@@ -197,6 +223,244 @@ function getCurrentDayPhase() {
   };
 }
 
+function getPerkBonus(perkId) {
+  return Number((state.perks && state.perks[perkId]) || 0);
+}
+
+function getComboMultiplier() {
+  const c = state.comboCount || 0;
+  if (c >= 8) return 2.5;
+  if (c >= 5) return 2.0;
+  if (c >= 3) return 1.5;
+  if (c >= 1) return 1.2;
+  return 1.0;
+}
+
+function getDailyUpkeep() {
+  let total = 0;
+  for (const room of state.rooms) {
+    total += 18 + (room.level - 1) * 8 + room.staff * 10;
+  }
+  const leanLv = getPerkBonus('lean_operation');
+  return Math.max(0, Math.round(total * Math.pow(0.75, leanLv)));
+}
+
+function pickRandomPerkChoices(count = 3) {
+  const cards = (GAME_CONFIG.perkCards || []).slice();
+  for (let i = cards.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [cards[i], cards[j]] = [cards[j], cards[i]];
+  }
+  return cards.slice(0, count);
+}
+
+function applyPerkCard(perkId) {
+  const card = (GAME_CONFIG.perkCards || []).find(c => c.id === perkId);
+  if (!card) return null;
+  if (!state.perks) state.perks = {};
+  state.perks[perkId] = (state.perks[perkId] || 0) + 1;
+  if (card.instantRep) {
+    state.rep += card.instantRep;
+  }
+  return card;
+}
+
+function spawnCustomerTicket() {
+  if (!Array.isArray(state.tickets)) state.tickets = [];
+  if (state.tickets.length >= 4) return null;
+  const templates = GAME_CONFIG.ticketTemplates || [];
+  if (!templates.length) return null;
+
+  const owned = new Set(state.rooms.map(r => r.type));
+  const eligible = templates.filter((tpl) => {
+    if (tpl.vip && state.rep < 12 && !owned.has('marketing')) return false;
+    if (tpl.requiresType === 'dining') return owned.has('dining') || owned.has('kitchen');
+    if (tpl.requiresType === 'cafe') return owned.has('cafe');
+    if (tpl.requiresType === 'dispatch') return owned.has('dispatch') || owned.has('packing');
+    if (tpl.requiresType === 'drone_hub') return owned.has('drone_hub');
+    return true;
+  });
+
+  const pool = eligible.length > 0 ? eligible : [templates[0]];
+  const tpl = pool[Math.floor(Math.random() * pool.length)];
+
+  let amount = tpl.amount;
+  let reward = tpl.reward;
+  let tip = tpl.tip;
+  if ((tpl.id === 'bistro_table' || tpl.id === 'office_delivery') && state.day >= 3 && Math.random() < 0.35) {
+    amount = 2;
+    reward = Math.round(tpl.reward * 1.65);
+    tip = Math.round(tpl.tip * 1.5);
+  }
+
+  const patienceMult = 1 + 0.25 * getPerkBonus('warm_hospitality');
+  const patience = Math.round(tpl.patience * patienceMult);
+
+  const ticket = {
+    id: state.nextTicketSeq++,
+    tplId: tpl.id,
+    title: tpl.title,
+    icon: tpl.icon,
+    resource: tpl.resource,
+    amount,
+    delivered: 0,
+    reward,
+    tip,
+    rep: tpl.rep,
+    vip: !!tpl.vip,
+    timeLeft: patience,
+    maxTime: patience
+  };
+  state.tickets.push(ticket);
+  return ticket;
+}
+
+function fulfillTicket(ticketId, isManualClick = false, skipResourceCost = false) {
+  if (!Array.isArray(state.tickets)) return false;
+  const idx = state.tickets.findIndex(t => t.id === ticketId);
+  if (idx === -1) return false;
+  const t = state.tickets[idx];
+  const remaining = Math.max(1, t.amount - (t.delivered || 0));
+
+  if (!skipResourceCost) {
+    if ((state[t.resource] || 0) < remaining) {
+      if (isManualClick && typeof showToast === 'function') {
+        showToast(`Chưa đủ ${remaining} ${RESOURCE_LABELS[t.resource] || t.resource} để giao!`);
+      }
+      return false;
+    }
+    state[t.resource] -= remaining;
+  }
+
+  const viralMult = 1 + 0.15 * getPerkBonus('viral_brand');
+  const baseCoins = skipResourceCost ? Math.round(t.reward * 0.35 * viralMult) : Math.round(t.reward * viralMult);
+  const comboMult = getComboMultiplier();
+  const tipPerkMult = 1 + 0.35 * getPerkBonus('tip_jar');
+  const manualMult = isManualClick ? 1.25 : 1.0;
+  const tipCoins = Math.round(t.tip * comboMult * tipPerkMult * manualMult);
+  const totalGain = baseCoins + tipCoins;
+
+  state.coins += totalGain;
+  state.totalEarned += totalGain;
+  state.dailyEarned = (state.dailyEarned || 0) + totalGain;
+  state.dailyTips = (state.dailyTips || 0) + tipCoins;
+  state.rep += t.rep;
+  state.totalServed += 1;
+  state.dailyOrdersCompleted = (state.dailyOrdersCompleted || 0) + 1;
+  state.comboCount = (state.comboCount || 0) + 1;
+
+  state.tickets.splice(idx, 1);
+
+  if (typeof bumpStat === 'function') {
+    bumpStat('pill-coins');
+    bumpStat('pill-rep');
+  }
+  if (typeof SoundFX !== 'undefined') {
+    if (isManualClick || t.vip) SoundFX.reward();
+    else SoundFX.upgrade();
+  }
+  if ((isManualClick || t.vip) && typeof showToast === 'function') {
+    showToast(`${t.icon} Phục vụ ${t.title}! +${totalGain} Xu (Tip +${tipCoins} · Combo ${getComboMultiplier()}x)`);
+  }
+  if (typeof renderTicketRail === 'function') renderTicketRail();
+  if (typeof updateHUD === 'function') updateHUD();
+  if (typeof updateContractUI === 'function') updateContractUI();
+
+  return { baseCoins, tipCoins, totalGain, combo: getComboMultiplier() };
+}
+
+function failTicket(ticket) {
+  if (!Array.isArray(state.tickets)) return;
+  const idx = state.tickets.findIndex(t => t.id === ticket.id);
+  if (idx !== -1) state.tickets.splice(idx, 1);
+
+  const penalty = Math.min(state.coins, 25);
+  state.coins -= penalty;
+  state.dailyPenalties = (state.dailyPenalties || 0) + penalty;
+  state.rep = Math.max(0, state.rep - 2);
+  state.comboCount = 0;
+  state.dailyOrdersFailed = (state.dailyOrdersFailed || 0) + 1;
+
+  if (typeof showToast === 'function') {
+    showToast(`😡 ${ticket.title} bỏ về vì chờ lâu! (-2⭐, -${penalty} Xu, gãy Combo)`);
+  }
+  if (typeof renderTicketRail === 'function') renderTicketRail();
+  if (typeof updateHUD === 'function') updateHUD();
+}
+
+function triggerRandomRoomHazard() {
+  const candidates = state.rooms.filter(r => !r.hazard && !r.starved);
+  if (!candidates.length) return null;
+
+  const safeLv = getPerkBonus('safe_kitchen');
+  const room = candidates[Math.floor(Math.random() * candidates.length)];
+  let hazard = null;
+
+  if (room.type === 'kitchen' || room.type === 'packing') {
+    if (safeLv > 0 && Math.random() < 1 - Math.pow(0.55, safeLv)) return null;
+    hazard = { type: 'overheat', icon: '🔥', label: 'Quá nhiệt!', blocking: true, timeLeft: 10, maxTime: 10 };
+  } else if (room.type === 'dining' || room.type === 'cafe') {
+    if (safeLv > 0 && Math.random() < 1 - Math.pow(0.55, safeLv)) return null;
+    hazard = { type: 'dirty_table', icon: '🫧', label: 'Dọn bàn +Tip', blocking: false, timeLeft: 12, maxTime: 12 };
+  } else if (room.type === 'warehouse' || room.type === 'cold_storage') {
+    hazard = { type: 'bonus_crate', icon: '🎁', label: '+3 Kho quà', blocking: false, timeLeft: 9, maxTime: 9 };
+  } else if (room.type === 'dispatch' || room.type === 'drone_hub') {
+    hazard = { type: 'jam', icon: '⚡', label: 'Đẩy nhanh +45%', blocking: false, timeLeft: 10, maxTime: 10 };
+  }
+
+  if (!hazard) return null;
+  room.hazard = hazard;
+  if (hazard.type === 'overheat' && typeof showToast === 'function') {
+    const cfg = GAME_CONFIG.rooms[room.type];
+    showToast(`🔥 ${cfg.name} đang quá nhiệt! Nhấn bong bóng lửa trên 3D để dập!`);
+  }
+  return { room, hazard };
+}
+
+function resolveRoomHazard(gx, gy) {
+  const room = getRoomAt(gx, gy);
+  if (!room || !room.hazard) return false;
+  const h = room.hazard;
+  room.hazard = null;
+
+  if (h.type === 'overheat') {
+    state.coins += 25;
+    state.totalEarned += 25;
+    state.dailyEarned = (state.dailyEarned || 0) + 25;
+    state.dailyTips = (state.dailyTips || 0) + 25;
+    if (typeof spawnFloater === 'function') spawnFloater(gx, gy, '🔥 Dập lửa +25 Xu', '#266E56');
+    if (typeof showToast === 'function') showToast('🚒 Đã dập quá nhiệt kịp thời! +25 Xu');
+  } else if (h.type === 'dirty_table') {
+    const tip = Math.round(30 * (1 + 0.35 * getPerkBonus('tip_jar')));
+    state.coins += tip;
+    state.totalEarned += tip;
+    state.dailyEarned = (state.dailyEarned || 0) + tip;
+    state.dailyTips = (state.dailyTips || 0) + tip;
+    if (typeof spawnFloater === 'function') spawnFloater(gx, gy, `🫧 +${tip} Tip`, '#B85524');
+    if (typeof showToast === 'function') showToast(`🫧 Đã dọn bàn sạch sẽ! +${tip} Xu Tip`);
+  } else if (h.type === 'bonus_crate') {
+    state.ingredients += 3;
+    if (typeof spawnFloater === 'function') spawnFloater(gx, gy, '🎁 +3 Kho', '#266E56');
+    if (typeof showToast === 'function') showToast('🎁 Nhận kiện nguyên liệu khuyến mãi: +3 Kho!');
+  } else if (h.type === 'jam') {
+    room.progress += 0.45;
+    if (room.progress >= 1) {
+      room.progress -= 1;
+      if (typeof completeRoomCycle === 'function') completeRoomCycle(room, getGlobalBonuses());
+    }
+    if (typeof spawnFloater === 'function') spawnFloater(gx, gy, '⚡ +45% Tiến độ', '#266E56');
+    if (typeof showToast === 'function') showToast('⚡ Đã điều phối xe xuất bến nhanh!');
+  }
+
+  if (typeof SoundFX !== 'undefined') SoundFX.upgrade();
+  if (typeof updateHUD === 'function') updateHUD();
+  if (typeof updateContractUI === 'function') updateContractUI();
+  if (selectedPlot && selectedPlot.gx === gx && selectedPlot.gy === gy && typeof renderDrawer === 'function') {
+    renderDrawer();
+  }
+  return true;
+}
+
 function getRoomEffectiveMultipliers(room, bonuses = getGlobalBonuses()) {
   const synergy = getRoomSynergy(room);
   const phase = getCurrentDayPhase();
@@ -206,16 +470,24 @@ function getRoomEffectiveMultipliers(room, bonuses = getGlobalBonuses()) {
   if (room.type === 'kitchen') menuSpeed = menu.kitchenSpeed || 1;
   else if (room.type === 'packing') menuSpeed = menu.packingSpeed || 1;
 
+  let perkSpeed = 1;
+  if (room.type === 'kitchen' || room.type === 'warehouse' || room.type === 'cold_storage') {
+    perkSpeed += 0.18 * getPerkBonus('sharp_knives');
+  } else if (room.type === 'packing' || room.type === 'dispatch' || room.type === 'drone_hub') {
+    perkSpeed += 0.22 * getPerkBonus('fast_packaging');
+  }
+
   let menuRev = 1;
   if (room.type === 'dining') menuRev = menu.diningRev || 1;
   else if (room.type === 'dispatch' || room.type === 'drone_hub') menuRev = menu.dispatchRev || 1;
 
+  const viralMult = 1 + 0.15 * getPerkBonus('viral_brand');
   const isServiceRoom = room.type === 'dining' || room.type === 'dispatch' || room.type === 'drone_hub' || room.type === 'cafe';
   const rushRevMult = isServiceRoom ? phase.rushRevenueMult : 1;
 
   return {
-    speedMult: bonuses.speedMult * synergy.speedMult * phase.rushSpeedMult * menuSpeed,
-    revenueMult: bonuses.revenueMult * synergy.revenueMult * rushRevMult * menuRev,
+    speedMult: bonuses.speedMult * synergy.speedMult * phase.rushSpeedMult * menuSpeed * perkSpeed,
+    revenueMult: bonuses.revenueMult * synergy.revenueMult * rushRevMult * menuRev * viralMult,
     synergy,
     phase,
     menu
@@ -334,6 +606,7 @@ function getNetResourceRates() {
 
 function showToast(msg) {
   const box = document.getElementById('toast-box');
+  if (!box) return;
   const el = document.createElement('div');
   el.className = 'toast-anim hud-glass rounded-full px-4 py-1.5 text-xs font-semibold text-stone-800';
   el.textContent = msg;

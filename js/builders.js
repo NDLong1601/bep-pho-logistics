@@ -738,10 +738,11 @@ function rebuildRooms3D() {
       agents: roomAgents
     });
 
-    // Floating crisp HTML room badge
+    // Floating crisp HTML room badge + clickable 3D hazard/opportunity bubble
     const tag = document.createElement('div');
     tag.className = 'room-tag';
     tag.innerHTML = `
+      <button type="button" class="room-hazard-btn hidden"></button>
       <div class="room-tag-row">
         <span>${cfg.icon}</span>
         <span class="room-tag-lv">Lv.${room.level}</span>
@@ -751,6 +752,11 @@ function rebuildRooms3D() {
       <div class="room-tag-warn hidden"></div>
       <div class="room-tag-bar"><div class="room-tag-fill" style="width:${Math.round(room.progress * 100)}%"></div></div>
     `;
+    const hzBtn = tag.querySelector('.room-hazard-btn');
+    hzBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      resolveRoomHazard(room.gx, room.gy);
+    });
     overlayLayer.appendChild(tag);
     roomTagMap.set(key, tag);
   }

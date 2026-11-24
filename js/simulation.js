@@ -65,10 +65,39 @@ function updateSimulation(dt, timeSec) {
     state.dayTimer -= 45;
     const finishedDay = state.day;
     state.day += 1;
-    if (state.dailyEarned > 0) {
-      showToast(`Tổng kết Ngày ${finishedDay}: +${state.dailyEarned.toLocaleString('vi-VN')} Xu`);
-    }
+
+    const upkeep = getDailyUpkeep();
+    const paidUpkeep = Math.min(state.coins, upkeep);
+    state.coins -= paidUpkeep;
+
+    const totalEarnedToday = state.dailyEarned || 0;
+    const tipsToday = state.dailyTips || 0;
+    const penaltiesToday = state.dailyPenalties || 0;
+    const dayReport = {
+      day: finishedDay,
+      grossSales: Math.max(0, totalEarnedToday - tipsToday),
+      tips: tipsToday,
+      upkeep,
+      penalties: penaltiesToday,
+      netProfit: totalEarnedToday - upkeep - penaltiesToday,
+      completed: state.dailyOrdersCompleted || 0,
+      failed: state.dailyOrdersFailed || 0
+    };
+
     state.dailyEarned = 0;
+    state.dailyTips = 0;
+    state.dailyPenalties = 0;
+    state.dailyOrdersCompleted = 0;
+    state.dailyOrdersFailed = 0;
+
+    const choices = pickRandomPerkChoices(3);
+    if (state.autoNextDay && choices.length > 0) {
+      const picked = applyPerkCard(choices[0].id);
+      showToast(`🧾 Ngày ${finishedDay}: Lợi nhuận ${dayReport.netProfit >= 0 ? '+' : ''}${dayReport.netProfit} Xu · Thẻ: ${picked.icon} ${picked.name}`);
+      saveGame(false);
+    } else if (typeof openDaySummaryModal === 'function') {
+      openDaySummaryModal(dayReport, choices);
+    }
     updateHUD();
   }
 
@@ -80,6 +109,33 @@ function updateSimulation(dt, timeSec) {
     else if (phase.id === 'night_rush') showToast('🌙 Đêm Phố Cổ lên đèn: +25% doanh thu quán!');
   } else if (prevPhase.id !== phase.id) {
     updateHUD();
+  }
+
+  // Live Customer Tickets Loop (Overcooked + Diner Dash pattern)
+  state.ticketSpawnTimer = (state.ticketSpawnTimer !== undefined ? state.ticketSpawnTimer : 2.5) - effDt;
+  if (state.ticketSpawnTimer <= 0) {
+    const newTicket = spawnCustomerTicket();
+    if (newTicket && typeof renderTicketRail === 'function') renderTicketRail();
+    const baseSpawn = phase.isRush ? 5.0 : 8.2;
+    state.ticketSpawnTimer = Math.max(3.4, baseSpawn - Math.min(2.4, state.rooms.length * 0.22));
+  }
+
+  if (Array.isArray(state.tickets) && state.tickets.length > 0) {
+    for (let i = state.tickets.length - 1; i >= 0; i--) {
+      const t = state.tickets[i];
+      t.timeLeft -= effDt;
+      if (t.timeLeft <= 0) {
+        failTicket(t);
+      }
+    }
+    if (typeof updateTicketRailProgress === 'function') updateTicketRailProgress();
+  }
+
+  // Interactive 3D Room Hazards / Opportunities
+  hazardSpawnTimer -= effDt;
+  if (hazardSpawnTimer <= 0) {
+    triggerRandomRoomHazard();
+    hazardSpawnTimer = 11 + Math.random() * 7;
   }
 
   // Express order countdown / generation
@@ -104,6 +160,26 @@ function updateSimulation(dt, timeSec) {
   for (const room of state.rooms) {
     const cfg = GAME_CONFIG.rooms[room.type];
     if (!cfg) continue;
+
+    if (room.hazard) {
+      room.hazard.timeLeft -= effDt;
+      if (room.hazard.timeLeft <= 0) {
+        const expiredHazard = room.hazard;
+        room.hazard = null;
+        if (expiredHazard.type === 'overheat') {
+          const fee = Math.min(state.coins, 50);
+          state.coins -= fee;
+          state.dailyPenalties = (state.dailyPenalties || 0) + fee;
+          state.comboCount = 0;
+          showToast(`💥 ${cfg.name} cháy khét do không dập lửa! (-${fee} Xu & mất Combo)`);
+          updateHUD();
+        }
+      }
+    }
+
+    if (room.hazard && room.hazard.blocking) {
+      continue;
+    }
 
     const missing = getMissingInputInfo(room);
     const wasStarved = !!room.starved;
@@ -227,6 +303,21 @@ function completeRoomCycle(room, bonuses) {
   if (out.rep) { state.rep += out.rep; bumpStat('pill-rep'); }
   if (out.served) state.totalServed += out.served;
 
+  // Auto-advance matching live customer ticket when service rooms finish a cycle
+  if ((room.type === 'dining' || room.type === 'cafe' || room.type === 'dispatch' || room.type === 'drone_hub') && Array.isArray(state.tickets) && state.tickets.length > 0) {
+    const targetRes = (room.type === 'dining' || room.type === 'cafe') ? 'dishes' : 'parcels';
+    const match = state.tickets.find(t => t.resource === targetRes);
+    if (match) {
+      const units = room.type === 'drone_hub' ? 2 : 1;
+      match.delivered = (match.delivered || 0) + units;
+      if (match.delivered >= match.amount) {
+        fulfillTicket(match.id, false, true);
+      } else if (typeof renderTicketRail === 'function') {
+        renderTicketRail();
+      }
+    }
+  }
+
   if (msgs.length) spawnFloater(room.gx, room.gy, msgs[0], out.coins ? '#B85524' : '#266E56');
   updateHUD();
   updateContractUI();
@@ -284,6 +375,22 @@ function syncOverlays() {
       if (synEl) {
         synEl.textContent = synText;
         synEl.classList.toggle('hidden', !synText);
+      }
+    }
+
+    const hz = entry.room.hazard;
+    const hzState = hz ? `${hz.type}_${Math.ceil(hz.timeLeft)}` : '';
+    if (tag.dataset.hz !== hzState) {
+      tag.dataset.hz = hzState;
+      const hzBtn = tag.querySelector('.room-hazard-btn');
+      if (hzBtn) {
+        if (hz) {
+          hzBtn.textContent = `${hz.icon} ${hz.label} (${Math.max(1, Math.ceil(hz.timeLeft))}s)`;
+          hzBtn.classList.remove('hidden');
+          hzBtn.classList.toggle('opportunity', !hz.blocking);
+        } else {
+          hzBtn.classList.add('hidden');
+        }
       }
     }
   });

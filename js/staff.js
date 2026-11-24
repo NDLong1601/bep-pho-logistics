@@ -193,7 +193,7 @@ function getCrewListHtml(room) {
     <div class="bg-white/90 border border-stone-200/80 rounded-2xl p-3">
       <div class="flex items-center justify-between mb-1">
         <div class="text-[10.5px] font-bold uppercase tracking-wide text-stone-500">Đội ngũ</div>
-        ${anyDozing ? '<button id="btn-wake-crew" class="btn-primary px-2 py-1 rounded-lg text-[10.5px] font-bold">☀️ Đánh thức</button>' : ''}
+        ${anyDozing ? `<button data-wake-room="${room.gx}_${room.gy}" class="btn-primary px-2 py-1 rounded-lg text-[10.5px] font-bold">☀️ Đánh thức</button>` : ''}
       </div>
       <div class="divide-y divide-stone-100">${rows}</div>
     </div>`;

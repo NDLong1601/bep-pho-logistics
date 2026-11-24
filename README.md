@@ -24,6 +24,7 @@ bep-pho-logistics/
     ├── staff.js        # Nhân viên có tên & tính cách, ngủ gật, người rửa bát
     ├── dishes.js       # Món ăn: giá, thời gian chuẩn bị, nâng sao, công thức từ khách quen
     ├── decor.js        # Trang trí, 3 điểm Không gian/Phục vụ/Món ăn và hạng quán
+    ├── menu.js         # Nút Menu duy nhất: tab Công trình và Nhân viên
     ├── simulation.js   # Vòng lặp sản xuất, di chuyển nhân vật, hiệu ứng
     ├── ui.js           # Thanh tài nguyên, đơn hàng, bảng nâng cấp/xây mới
     └── main.js         # Điều khiển chuột/cảm ứng/phím tắt và khởi chạy

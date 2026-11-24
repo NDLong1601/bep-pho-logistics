@@ -74,27 +74,13 @@
       </div>
     </header>
 
-    <!-- BOTTOM DOCK: the main actions -->
-    <nav id="main-dock" class="fixed bottom-3 left-1/2 -translate-x-1/2 z-20 hud-glass rounded-2xl p-1.5 flex items-center gap-1 pointer-events-auto">
-      <button id="btn-dishes" class="dock-btn" title="Món ăn: giá, nâng sao, công thức mới"><span class="dock-ico">📖</span><span>Món ăn</span></button>
-      <button id="btn-decor" class="dock-btn" title="Trang trí & hạng quán"><span class="dock-ico">🏮</span><span>Trang trí</span></button>
-      <button id="btn-menu-select" class="dock-btn" title="Thực đơn đặc sản, cấp độ & mở đất"><span class="dock-ico" id="menu-icon">🍜</span><span>Mở rộng</span><span id="menu-label" class="hidden">Thực đơn</span></button>
-      <button id="btn-pause" class="dock-btn" title="Tạm dừng / Tiếp tục (Space)"><span class="dock-ico" id="pause-icon">⏸</span><span id="pause-label">Tạm dừng</span></button>
-      <button id="btn-more" class="dock-btn" title="Thêm"><span class="dock-ico">⋯</span><span>Thêm</span></button>
-    </nav>
-
-    <!-- "More" popover: things used rarely -->
-    <div id="more-menu" class="hidden fixed bottom-[86px] left-1/2 -translate-x-1/2 z-30 hud-glass rounded-2xl p-2 grid grid-cols-3 gap-1.5 w-[min(330px,calc(100vw-24px))] pointer-events-auto">
-      <button id="btn-speed" class="dock-btn" title="Đổi tốc độ (1 / 2)"><span class="dock-ico tabular-nums" id="speed-label">1x</span><span>Tốc độ</span></button>
-      <button id="btn-sound" class="dock-btn" title="Bật/Tắt âm thanh"><span class="dock-ico">🔊</span><span>Âm thanh</span></button>
-      <button id="btn-expand-grid" class="dock-btn" title="Mở rộng quỹ đất"><span class="dock-ico">🗺️</span><span id="expand-label">Mở đất</span></button>
-      <button id="btn-rotate" class="dock-btn" title="Xoay góc nhìn 90° (Q)"><span class="dock-ico">🔄</span><span>Xoay</span></button>
-      <button id="btn-cam-reset" class="dock-btn" title="Căn giữa (R)"><span class="dock-ico">🎯</span><span>Căn giữa</span></button>
-      <button id="btn-system" class="dock-btn" title="Lưu game & cài đặt"><span class="dock-ico">💾</span><span>Lưu game</span></button>
-    </div>
+    <!-- THE ONE MENU BUTTON: everything the player manages is inside -->
+    <button id="btn-menu" class="menu-fab fixed bottom-3 right-3 z-20 pointer-events-auto" title="Menu (M)">
+      <span class="menu-fab-ico">☰</span><span>Menu</span>
+    </button>
 
     <!-- BOTTOM-LEFT COZY CONTRACT CARD -->
-    <aside id="contract-panel" class="fixed bottom-[84px] lg:bottom-4 left-3 z-20 w-72 max-w-[calc(100vw-28px)] hud-glass rounded-2xl p-3.5 pointer-events-auto">
+    <aside id="contract-panel" class="fixed bottom-3 left-3 z-20 w-72 max-w-[calc(100vw-28px)] hud-glass rounded-2xl p-3.5 pointer-events-auto">
       <div id="express-box" class="hidden mb-3 pb-3 border-b border-stone-900/10">
         <div class="flex items-center justify-between gap-2 mb-1">
           <span class="text-[10px] font-bold uppercase tracking-wider text-rose-700">⚡ Đơn Khẩn Cấp</span>
@@ -132,7 +118,7 @@
     </aside>
 
     <!-- BOTTOM-RIGHT ZOOM (desktop; phones pinch) -->
-    <div class="fixed bottom-4 right-3.5 z-20 hidden md:flex flex-col gap-1.5 hud-glass rounded-2xl p-1.5 pointer-events-auto">
+    <div class="fixed bottom-[92px] right-3 z-20 hidden md:flex flex-col gap-1.5 hud-glass rounded-2xl p-1.5 pointer-events-auto">
       <button id="btn-zoom-in" class="btn-ghost w-9 h-9 rounded-xl text-base font-bold flex items-center justify-center" title="Phóng to (+)">+</button>
       <button id="btn-zoom-out" class="btn-ghost w-9 h-9 rounded-xl text-base font-bold flex items-center justify-center" title="Thu nhỏ (-)">−</button>
     </div>
@@ -157,21 +143,35 @@
       <div class="hud-glass rounded-3xl w-full max-w-xl max-h-[85vh] flex flex-col overflow-hidden bg-[#FDFBF7]">
         <div class="px-5 py-4 border-b border-stone-900/10 flex items-center justify-between">
           <div>
-            <h2 class="font-bold text-base text-stone-900">📒 Sổ tay quán phở</h2>
-            <p class="text-xs text-stone-500">Món ăn, trang trí, hạng quán và lưu game</p>
+            <h2 class="font-bold text-base text-stone-900">🍜 Quản lý quán</h2>
+            <p class="text-xs text-stone-500">Công trình, nhân viên, món ăn, trang trí và cài đặt</p>
           </div>
           <button id="btn-close-modal" class="btn-ghost w-8 h-8 rounded-xl text-sm font-bold">✕</button>
         </div>
 
         <div class="px-4 pt-2 flex flex-nowrap overflow-x-auto custom-scroll gap-1 border-b border-stone-900/10">
+          <button id="tab-build" class="shrink-0 whitespace-nowrap px-3 py-2 text-sm font-bold">🏗️ Công trình</button>
+          <button id="tab-staff" class="shrink-0 whitespace-nowrap px-3 py-2 text-sm font-bold">👩‍🍳 Nhân viên</button>
           <button id="tab-dishes" class="shrink-0 whitespace-nowrap px-3 py-2 text-sm font-bold">📖 Món ăn</button>
           <button id="tab-decor" class="shrink-0 whitespace-nowrap px-3 py-2 text-sm font-bold">🏮 Trang trí</button>
           <button id="tab-expansion" class="shrink-0 whitespace-nowrap px-3 py-2 text-sm font-bold">🍜 Mở rộng</button>
-          <button id="tab-save" class="shrink-0 whitespace-nowrap px-3 py-2 text-sm font-bold">💾 Lưu game</button>
+          <button id="tab-save" class="shrink-0 whitespace-nowrap px-3 py-2 text-sm font-bold">⚙️ Cài đặt</button>
         </div>
 
         <div id="modal-content" class="p-5 overflow-y-auto custom-scroll text-xs text-stone-700 space-y-4">
+          <div id="panel-build" class="hidden space-y-2" ><div id="build-list" class="space-y-2"></div></div>
+          <div id="panel-staff" class="hidden"><div id="staff-list" class="space-y-4"></div></div>
           <div id="panel-save" class="space-y-4">
+            <div>
+              <div class="text-[11px] font-bold uppercase tracking-wide text-stone-500 mb-1.5">Điều khiển</div>
+              <div class="grid grid-cols-3 gap-2">
+                <button id="btn-pause" class="dock-btn" title="Tạm dừng / Tiếp tục (Space)"><span class="dock-ico" id="pause-icon">⏸</span><span id="pause-label">Tạm dừng</span></button>
+                <button id="btn-speed" class="dock-btn" title="Đổi tốc độ (1 / 2)"><span class="dock-ico tabular-nums" id="speed-label">1x</span><span>Tốc độ</span></button>
+                <button id="btn-sound" class="dock-btn" title="Bật/Tắt âm thanh"><span class="dock-ico">🔊</span><span>Âm thanh</span></button>
+                <button id="btn-rotate" class="dock-btn" title="Xoay góc nhìn 90° (Q)"><span class="dock-ico">🔄</span><span>Xoay</span></button>
+                <button id="btn-cam-reset" class="dock-btn" title="Căn giữa (R)"><span class="dock-ico">🎯</span><span>Căn giữa</span></button>
+                              </div>
+            </div>
             <div class="grid grid-cols-2 gap-2.5">
               <div class="bg-white border border-stone-200/80 rounded-2xl p-3">
                 <div class="text-[11px] text-stone-500">Tổng lượt phục vụ / giao</div>
@@ -314,6 +314,7 @@
   <script src="js/staff.js"></script>
   <script src="js/dishes.js"></script>
   <script src="js/decor.js"></script>
+  <script src="js/menu.js"></script>
   <script src="js/simulation.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/main.js"></script>

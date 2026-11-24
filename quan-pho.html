@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#faf4e9">
+  <title>Bếp Phố · Quán Phở</title>
+  <link rel="stylesheet" href="quan/style.css">
+  <link rel="preload" href="quan/quan-pho.webp" as="image">
+  <link rel="icon" href="quan/mark.png" type="image/png">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="quan-pho.html" class="brand" aria-label="Bếp Phố, trang quán phở">
+        <span class="brand-mark" aria-hidden="true"><i></i></span>
+        <span>Bếp Phố <small>QUÁN PHỞ</small></span>
+      </a>
+      <div class="resources" aria-label="Tài nguyên quán">
+        <div class="resource"><span class="resource-icon coin" aria-hidden="true"></span><span><strong id="cash">180</strong> xu</span></div>
+        <div class="resource"><span class="resource-icon crate" aria-hidden="true"></span><span><strong id="stock">23</strong> <span class="stock-label">nguyên liệu</span><span class="stock-short">kho</span></span></div>
+      </div>
+      <button class="button quiet sound" id="sound" type="button" aria-pressed="false" aria-label="Âm thanh: tắt"><i class="speaker" aria-hidden="true"></i><span>Âm thanh: tắt</span></button>
+    </div>
+  </header>
+
+  <main class="shell">
+    <div class="page-heading">
+      <div>
+        <h1>Quán phở đầu ngõ</h1>
+        <p id="shift-hint">Mở cửa, xếp khách vào bàn và điều phối ca bán.</p>
+      </div>
+      <div class="shift-controls">
+        <button class="button quiet" id="pause" type="button" hidden>Tạm dừng</button>
+        <button class="button quiet" id="end-shift" type="button" hidden>Ngừng đón khách</button>
+        <button class="button primary" id="start" type="button">Mở cửa</button>
+      </div>
+    </div>
+
+    <section class="panel summary" id="summary" aria-labelledby="summary-title" hidden>
+      <div><h2 id="summary-title">Tổng kết ca</h2><p>Tiền và cấp nhân viên được chuyển sang ca sau.</p></div>
+      <dl id="summary-stats"></dl>
+    </section>
+
+    <div class="play-layout">
+      <div class="main-column">
+        <section class="scene-card" aria-label="Sơ đồ quán phở">
+          <div class="scene-top">
+            <div class="scene-title"><span class="mode-dot" id="mode-dot" aria-hidden="true"></span><strong id="shift-mode">Chưa mở cửa</strong></div>
+            <div class="clock"><span id="shift-number">Ca 1</span><span class="clock-line" aria-hidden="true"></span><strong id="clock">1:40</strong></div>
+          </div>
+          <div class="shift-meter" aria-hidden="true"><div id="shift-fill"></div></div>
+          <div class="stage">
+            <canvas id="scene" width="960" height="720" aria-hidden="true"></canvas>
+            <div class="zone-label kitchen-label" id="kitchen-label">Bếp</div>
+            <div class="zone-label counter-label" id="counter-label">Quầy ra món</div>
+            <button class="table-chip" data-table="1" type="button"><strong>Bàn 1</strong><span class="table-stage">Trống</span></button>
+            <button class="table-chip" data-table="2" type="button"><strong>Bàn 2</strong><span class="table-stage">Trống</span></button>
+            <button class="table-chip" data-table="3" type="button"><strong>Bàn 3</strong><span class="table-stage">Trống</span></button>
+            <button class="table-chip" data-table="4" type="button"><strong>Bàn 4</strong><span class="table-stage">Trống</span></button>
+            <div class="entrance-label" id="entrance-label">Cửa vào</div>
+          </div>
+          <div class="scene-bottom">
+            <span id="scene-tip">Chạm một bàn khi khách đang xếp hàng.</span>
+            <label class="switch"><input id="auto-seat" type="checkbox"> Tự xếp bàn</label>
+          </div>
+        </section>
+
+        <section class="panel menu" aria-labelledby="menu-title">
+          <h2 id="menu-title">Thực đơn</h2>
+          <ul class="dish-list" id="dish-list"></ul>
+        </section>
+      </div>
+
+      <aside class="side-column" aria-label="Điều hành ca bán">
+        <section class="panel live" aria-labelledby="live-title">
+          <div class="panel-heading">
+            <h2 id="live-title">Ca phục vụ</h2>
+            <span class="tag" id="served-label">0 đơn</span>
+          </div>
+          <dl class="signals">
+            <div data-signal="door"><dt><i class="signal-dot"></i>Khách chờ bàn</dt><dd id="wait-door">0</dd></div>
+            <div data-signal="kitchen"><dt><i class="signal-dot"></i>Đơn chờ bếp</dt><dd id="wait-kitchen">0</dd></div>
+            <div data-signal="ready"><dt><i class="signal-dot"></i>Món chờ mang</dt><dd id="wait-ready">0</dd></div>
+            <div data-signal="dirty"><dt><i class="signal-dot"></i>Bàn chờ dọn</dt><dd id="wait-dirty">0</dd></div>
+          </dl>
+          <div id="stock-warning" class="notice" hidden>Bếp thiếu nguyên liệu cho đơn tiếp theo.</div>
+          <div class="checkout-line"><span>Thu từ đơn</span><strong id="sales">0 xu</strong></div>
+          <button class="button stock-button" id="restock" type="button">Nhập +15 nguyên liệu <span>36 xu</span></button>
+        </section>
+
+        <section class="panel" aria-labelledby="crew-title">
+          <div class="panel-heading"><h2 id="crew-title">Nhân viên</h2><span class="tag">3 người</span></div>
+          <div id="crew-list" class="crew-list"></div>
+        </section>
+
+        <section class="panel activity" aria-labelledby="activity-title">
+          <h2 id="activity-title">Nhật ký ca</h2>
+          <ul id="event-list"></ul>
+        </section>
+      </aside>
+    </div>
+
+    <footer><a href="./">Về Bếp Phố Logistics 3D</a></footer>
+  </main>
+  <div class="toast" id="toast" role="status" hidden></div>
+  <script src="js/audio.js"></script>
+  <script type="module" src="quan/app.js"></script>
+</body>
+</html>

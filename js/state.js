@@ -11,6 +11,9 @@ function createInitialState() {
     broth: 24,
     brothCooking: 0,
     dirtyBowls: 0,
+    unlockedDishes: ['pho_tai', 'tra_da'],
+    dishStars: {},
+    dishSales: {},
     rep: 10,
     playerLevel: 1,
     exp: 0,
@@ -74,7 +77,19 @@ const SAVE_MIGRATIONS = [
   },
   // v3 -> v4: named crews (room.crew) and kitchen dishwashers (room.washers).
   // ensureCrew() fills them in when the rooms are built, so nothing to convert.
-  (s) => s
+  (s) => s,
+  // v4 -> v5: dish menu. Starter dishes, plus every recipe the save has
+  // already earned by its served-customer count (no story cards for those).
+  (s) => {
+    const unlocked = ['pho_tai', 'tra_da'];
+    for (const d of GAME_CONFIG.dishes) {
+      if (d.unlock && (s.totalServed || 0) >= d.unlock.served) unlocked.push(d.id);
+    }
+    s.unlockedDishes = unlocked;
+    s.dishStars = {};
+    s.dishSales = {};
+    return s;
+  }
 ];
 
 function migrateSave(parsed) {
@@ -111,6 +126,9 @@ function normalizeLoadedState(parsed) {
   if (typeof s.broth !== 'number' || s.broth < 0) s.broth = 0;
   if (typeof s.brothCooking !== 'number' || s.brothCooking < 0) s.brothCooking = 0;
   if (typeof s.dirtyBowls !== 'number' || s.dirtyBowls < 0) s.dirtyBowls = 0;
+  if (!Array.isArray(s.unlockedDishes) || !s.unlockedDishes.length) s.unlockedDishes = ['pho_tai', 'tra_da'];
+  if (!s.dishStars || typeof s.dishStars !== 'object') s.dishStars = {};
+  if (!s.dishSales || typeof s.dishSales !== 'object') s.dishSales = {};
   s.autoNextDay = !!s.autoNextDay;
   return s;
 }

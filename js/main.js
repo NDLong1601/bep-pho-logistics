@@ -261,6 +261,7 @@ document.getElementById('btn-claim-express').addEventListener('click', () => {
 const modal = document.getElementById('system-modal');
 const tabs = [
   { btn: 'tab-save', panel: 'panel-save' },
+  { btn: 'tab-dishes', panel: 'panel-dishes' },
   { btn: 'tab-expansion', panel: 'panel-expansion' },
   { btn: 'tab-extend', panel: 'panel-extend' },
   { btn: 'tab-deploy', panel: 'panel-deploy' }
@@ -275,6 +276,7 @@ function selectModalTab(tabBtnId) {
     document.getElementById(x.panel).classList.toggle('hidden', !active);
   });
   if (tabBtnId === 'tab-expansion') renderExpansionPanel();
+  if (tabBtnId === 'tab-dishes') renderDishesPanel();
 }
 
 function openSystemModal(tabBtnId = 'tab-save') {
@@ -286,6 +288,7 @@ function openSystemModal(tabBtnId = 'tab-save') {
 }
 
 document.getElementById('btn-system').addEventListener('click', () => openSystemModal('tab-save'));
+document.getElementById('btn-dishes').addEventListener('click', () => openSystemModal('tab-dishes'));
 document.getElementById('btn-menu-select').addEventListener('click', () => openSystemModal('tab-expansion'));
 document.getElementById('btn-expand-grid').addEventListener('click', () => openSystemModal('tab-expansion'));
 const pillExpBtn = document.getElementById('pill-exp');

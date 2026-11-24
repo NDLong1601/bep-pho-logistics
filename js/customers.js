@@ -322,7 +322,8 @@ function payCustomer(c) {
   const cfg = GAME_CONFIG.restaurant.customers;
   const stats = getRoomCycleStats(room);
   const out = stats.output || {};
-  const coins = Math.round((out.coins || 0) * (c.vip ? cfg.vipPayMult : 1));
+  const order = c.order || { main: 'pho_tai', side: null };
+  const coins = Math.round((out.coins || 0) * getOrderPriceMult(order) * (c.vip ? cfg.vipPayMult : 1));
   const rep = (out.rep || 1) + (c.vip ? cfg.vipBonusRep : 0);
 
   state.coins += coins;
@@ -331,9 +332,12 @@ function payCustomer(c) {
   state.rep += rep;
   state.totalServed += 1;
   state.dirtyBowls = (state.dirtyBowls || 0) + 1;
+  recordDishSale(order);
   gainExp(stats.expGain);
 
-  spawnFloater(room.gx, room.gy, `${c.vip ? '👑 ' : ''}+${coins} Xu`, '#B85524');
+  const mainDish = getDishConfig(order.main);
+  spawnFloater(room.gx, room.gy, `${c.vip ? '👑 ' : ''}${mainDish ? mainDish.icon + ' ' : ''}+${coins} Xu`, '#B85524');
+  checkRecipeUnlocks();
   bumpStat('pill-coins');
   bumpStat('pill-rep');
   if (c.vip && typeof SoundFX !== 'undefined') SoundFX.reward();
@@ -439,6 +443,7 @@ function updateCustomers(effDt, phase) {
         c.mesh.rotation.y = seat.rotY;
         setSeatedPose(c, true);
         c.stage = 'waitFood';
+        c.order = pickCustomerOrder();
         c.waiter = null;
         c.dishReserved = false;
         c.patience = cfg.foodPatienceSec * (1 + 0.25 * getPerkBonus('warm_hospitality')) * getCrewPatienceMult(room);
@@ -448,10 +453,11 @@ function updateCustomers(effDt, phase) {
       // A waiter takes a bowl from the counter and carries it to the table (see updateWaiters).
       const agents = getRoomAgents(room);
       if (c.waiter && !agents.includes(c.waiter)) c.waiter = null; // room was rebuilt
-      if (!c.waiter && (c.dishReserved || (state.dishes || 0) >= 1)) {
+      const needsBowl = orderNeedsBowl(c.order);
+      if (!c.waiter && (!needsBowl || c.dishReserved || (state.dishes || 0) >= 1)) {
         const waiter = agents.find(a => a.waiter && !a.task && !(a.crew && a.crew.dozing));
         if (waiter) {
-          if (!c.dishReserved) {
+          if (needsBowl && !c.dishReserved) {
             state.dishes -= 1;
             c.dishReserved = true;
           }
@@ -552,6 +558,15 @@ function updateWaiters(effDt) {
       if (task.phase === 'pickup') {
         // Step up to the counter to collect the bowl.
         if (moveAgentLocal(a, 0.15 + (idx % 3 - 1) * 0.35, -0.9, effDt)) {
+          // Finish the order at the counter: garnish the bowl, roll the
+          // spring rolls, pour the tea... (dish prep time)
+          task.phase = 'prep';
+          task.timer = getOrderPrepSec(c.order || { main: 'pho_tai' }) / getCrewSpeedMult(a.crew);
+          a.mesh.rotation.y = Math.PI;
+        }
+      } else if (task.phase === 'prep') {
+        task.timer -= effDt;
+        if (task.timer <= 0) {
           task.phase = 'deliver';
           if (a.carry) a.carry.visible = true;
         }
@@ -597,5 +612,8 @@ function estimateVenueRates(room, bonuses) {
   const mealSec = cfg.eatSec + cfg.serveDelaySec + 4;
   const servedPerSec = Math.min(arrivalsPerSec, seats / mealSec);
   const out = getRoomCycleStats(room, room.level, room.staff, bonuses).output || {};
-  return { coins: servedPerSec * (out.coins || 0), dishes: servedPerSec };
+  const bowlShare = getUnlockedDishes('main').length
+    ? getUnlockedDishes('main').filter(d => d.needsBroth !== false).length / getUnlockedDishes('main').length
+    : 1;
+  return { coins: servedPerSec * (out.coins || 0) * getExpectedOrderPriceMult(), dishes: servedPerSec * bowlShare };
 }

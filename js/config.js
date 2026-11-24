@@ -4,7 +4,7 @@
 const GAME_CONFIG = {
   SAVE_KEY: 'bep_pho_logistics_v1',
   // Bump when the save format changes and add a step to SAVE_MIGRATIONS in state.js.
-  SAVE_VERSION: 4,
+  SAVE_VERSION: 5,
   GRID_COLS: 4,
   GRID_ROWS: 4,
   TILE_SIZE: 4.4,
@@ -439,6 +439,30 @@ const GAME_CONFIG = {
     counter: { baseCap: 10, capPerLevel: 4 },  // bowls ready at the pass
     // Ingredient storage: warehouses idle when full. cap = base + perStorageLevel × (sum of warehouse & cold storage levels)
     storage: { baseCap: 25, perStorageLevel: 15 }
+  },
+
+  // Dishes customers order. priceMult × the dining room's bowl price × star bonus.
+  // needsBroth: takes a bowl (and broth) from the kitchen counter.
+  // unlock: a regular shares the recipe after `served` customers in total.
+  dishes: [
+    { id: 'pho_tai', name: 'Phở bò tái', icon: '🍜', category: 'main', priceMult: 1.0, prepSec: 1.0, popularity: 5, needsBroth: true, costMult: 1 },
+    { id: 'tra_da', name: 'Trà đá', icon: '🧊', category: 'side', priceMult: 0.15, prepSec: 0.4, popularity: 4, needsBroth: false, costMult: 0.4 },
+    { id: 'quay', name: 'Quẩy giòn', icon: '🥖', category: 'side', priceMult: 0.22, prepSec: 0.5, popularity: 3, needsBroth: false, costMult: 0.5,
+      unlock: { served: 10, giver: 'Bà Tám bán quẩy đầu ngõ', story: '"Quẩy phải chiên hai lần mới giòn lâu, cháu ạ. Bà để mối cho cháu, khách nào cũng sẽ xin thêm một đĩa."' } },
+    { id: 'pho_ga', name: 'Phở gà ta', icon: '🐔', category: 'main', priceMult: 1.1, prepSec: 1.4, popularity: 4, needsBroth: true, costMult: 1.1,
+      unlock: { served: 25, giver: 'Chú Bảy xe ôm', story: '"Hồi nhỏ mỗi lần ốm, mẹ chú luộc con gà ta, xé thịt, thả lá chanh thái chỉ. Cháu nấu thử đi, chú ăn thử cho."' } },
+    { id: 'pho_nam_gau', name: 'Phở nạm gầu', icon: '🥩', category: 'main', priceMult: 1.35, prepSec: 1.8, popularity: 3, needsBroth: true, costMult: 1.3,
+      unlock: { served: 50, giver: 'Cô Hiền, giáo viên về hưu', story: '"Gầu phải chọn miếng có vân mỡ giòn, thái mỏng ngang thớ. Cô ăn phở ở phố này bốn mươi năm rồi, tin cô."' } },
+    { id: 'pho_cuon', name: 'Phở cuốn', icon: '🌯', category: 'main', priceMult: 1.2, prepSec: 2.2, popularity: 2, needsBroth: false, costMult: 1.2,
+      unlock: { served: 85, giver: 'Anh Long, sinh viên trọ gần quán', story: '"Tối nào đói em cũng lấy bánh phở chưa cắt cuộn thịt bò xào với rau thơm. Hôm nay em chỉ quán cách cuốn cho đẹp."' } },
+    { id: 'pho_dac_biet', name: 'Phở đặc biệt', icon: '⭐', category: 'main', priceMult: 1.8, prepSec: 2.6, popularity: 2, needsBroth: true, costMult: 1.6,
+      unlock: { served: 140, giver: 'Ông Khải, đầu bếp già đã nghỉ nghề', story: '"Bát đặc biệt có đủ tái, chín, nạm, gầu, gân và một quả trứng chần. Nước dùng phải trong, thơm quế hồi mà không gắt."' } }
+  ],
+  dishStars: {
+    max: 5,
+    pricePerStar: 0.2,                 // +20% price per star above 1
+    costs: [300, 700, 1600, 3500],     // coins for 2★, 3★, 4★, 5★ (× dish costMult)
+    sideChance: 0.45                   // chance a customer adds a side / drink
   },
 
   staff: {

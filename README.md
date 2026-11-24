@@ -22,6 +22,7 @@ bep-pho-logistics/
     ├── builders.js     # Dựng mô hình 3D nội thất & nhân vật cho từng phòng
     ├── customers.js    # Khách thật: xếp hàng, ngồi bàn, ăn, trả tiền; nồi nước dùng & bồn rửa
     ├── staff.js        # Nhân viên có tên & tính cách, ngủ gật, người rửa bát
+    ├── dishes.js       # Món ăn: giá, thời gian chuẩn bị, nâng sao, công thức từ khách quen
     ├── simulation.js   # Vòng lặp sản xuất, di chuyển nhân vật, hiệu ứng
     ├── ui.js           # Thanh tài nguyên, đơn hàng, bảng nâng cấp/xây mới
     └── main.js         # Điều khiển chuột/cảm ứng/phím tắt và khởi chạy
@@ -45,7 +46,8 @@ bep-pho-logistics/
 - **Nhân viên** mỗi người có tên và một tính cách (Chăm chỉ, Nhanh nhẹn, Chu đáo, Hay ngủ gật). Bồi bàn ở Phòng Ăn tự lấy bát ở quầy và bưng ra tận bàn. Người hay ngủ gật thỉnh thoảng gục xuống: nhấn bong bóng 💤 trên phòng để đánh thức.
 - **Người rửa bát** thuê riêng trong bảng Bếp (tối đa 2 mỗi bếp), rửa bát bẩn liên tục.
 - **Kho nguyên liệu** có sức chứa; kho đầy thì Kho Nguyên Liệu tạm ngừng nhập.
-- Thông số nằm ở `GAME_CONFIG.restaurant` và `GAME_CONFIG.staff` trong `js/config.js`.
+- **Món ăn** (nút 📖 Món ăn): khách gọi một món chính, đôi khi kèm trà đá hoặc quẩy, và trả đúng giá món. Mỗi món nâng được từ 1 đến 5 sao (+20% giá mỗi sao, được gọi nhiều hơn). Phục vụ đủ số khách thì một khách quen kể công thức món mới (Quẩy, Phở gà, Phở nạm gầu, Phở cuốn, Phở đặc biệt).
+- Thông số nằm ở `GAME_CONFIG.restaurant`, `GAME_CONFIG.staff`, `GAME_CONFIG.dishes` và `GAME_CONFIG.dishStars` trong `js/config.js`.
 
 ## Hướng dẫn Mở rộng Game
 

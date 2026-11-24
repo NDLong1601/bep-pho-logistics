@@ -116,8 +116,8 @@ function renderTicketRail() {
   }
 
   rail.innerHTML = tickets.map((t) => {
-    const rem = Math.max(1, t.amount - (t.delivered || 0));
-    const canServe = (state[t.resource] || 0) >= rem;
+    const rem = t.amount - t.delivered;
+    const canServe = !!getTicketServiceRoom(t) && state[t.resource] >= rem;
     const pct = Math.max(0, Math.min(100, Math.round((t.timeLeft / t.maxTime) * 100)));
     const isUrgent = pct <= 25;
     const resIcon = t.resource === 'dishes' ? '🍲' : '📦';
@@ -132,7 +132,7 @@ function renderTicketRail() {
         </div>
         <div class="flex items-center justify-between gap-1.5 mt-1 text-[10.5px]">
           <span class="font-semibold ${canServe ? 'text-emerald-700' : 'text-stone-600'}">${resIcon} ${progressText} ${RESOURCE_LABELS[t.resource] || ''}</span>
-          <span class="font-bold text-amber-800">+${t.reward}Xu</span>
+          <span class="font-bold text-amber-800">Gốc ${t.reward} Xu</span>
         </div>
         <div class="mt-1.5 h-1 bg-stone-900/10 rounded-full overflow-hidden">
           <div class="ticket-bar h-full ${barColor} rounded-full transition-all duration-150" style="width:${pct}%"></div>
@@ -144,7 +144,7 @@ function renderTicketRail() {
   rail.querySelectorAll('[data-ticket-id]').forEach((btn) => {
     btn.addEventListener('click', () => {
       const id = Number(btn.getAttribute('data-ticket-id'));
-      fulfillTicket(id, true, false);
+      fulfillTicket(id);
     });
   });
 }
@@ -157,8 +157,8 @@ function updateTicketRailProgress() {
     if (!el) continue;
     const pct = Math.max(0, Math.min(100, Math.round((t.timeLeft / t.maxTime) * 100)));
     const isUrgent = pct <= 25;
-    const rem = Math.max(1, t.amount - (t.delivered || 0));
-    const canServe = (state[t.resource] || 0) >= rem;
+    const rem = t.amount - t.delivered;
+    const canServe = !!getTicketServiceRoom(t) && state[t.resource] >= rem;
 
     el.classList.toggle('urgent', isUrgent);
     el.classList.toggle('ready', canServe);
@@ -190,7 +190,7 @@ function openDaySummaryModal(dayReport, choices) {
   const stars = (dayReport.failed === 0 && dayReport.netProfit >= 0) ? '⭐⭐⭐' : (dayReport.failed <= 1 ? '⭐⭐' : '⭐');
   document.getElementById('summary-stars').textContent = stars;
 
-  document.getElementById('sum-gross').textContent = `+${dayReport.grossSales.toLocaleString('vi-VN')} Xu`;
+  document.getElementById('sum-gross').textContent = `+${dayReport.incomeBeforeTips.toLocaleString('vi-VN')} Xu`;
   document.getElementById('sum-tips').textContent = `+${dayReport.tips.toLocaleString('vi-VN')} Xu`;
   document.getElementById('sum-upkeep').textContent = `-${(dayReport.upkeep + dayReport.penalties).toLocaleString('vi-VN')} Xu`;
 
@@ -313,6 +313,12 @@ function closeInspector() {
   document.getElementById('inspector-drawer').classList.add('hidden');
 }
 
+function getRoomStatusText(missing, cycleSec) {
+  if (missing?.waitingForOrder) return 'Đang chờ phiếu phù hợp';
+  if (missing) return `⚠️ Đang tạm dừng: ${missing.label} (Cần ${missing.needed}, hiện có ${missing.current})`;
+  return `✅ Đang vận hành · Chu kỳ ${cycleSec.toFixed(1)}s`;
+}
+
 function updateSelectedRoomProgressOnly(room) {
   const bar = document.getElementById('drawer-room-progress');
   if (bar) bar.style.width = `${Math.min(100, Math.round(room.progress * 100))}%`;
@@ -323,11 +329,10 @@ function updateSelectedRoomProgressOnly(room) {
     const curStats = getRoomCycleStats(room);
     if (missing) {
       statusBox.className = 'text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-300/80 rounded-xl px-2.5 py-1.5';
-      statusBox.textContent = `⚠️ Đang tạm dừng: ${missing.label} (Cần ${missing.needed}, hiện có ${missing.current})`;
     } else {
       statusBox.className = 'text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200/70 rounded-xl px-2.5 py-1.5';
-      statusBox.textContent = `✅ Đang vận hành · Chu kỳ ${curStats.cycleSec.toFixed(1)}s`;
     }
+    statusBox.textContent = getRoomStatusText(missing, curStats.cycleSec);
   }
 }
 
@@ -386,7 +391,7 @@ function renderDrawer() {
           ${mergePreviewBadge}
           ${synBadge}
           <div class="flex items-center justify-between pt-1.5 border-t border-stone-100 gap-2">
-            <span class="text-[10.5px] font-semibold text-emerald-700">${cfg.effectText} · +${cfg.expPerCycle || 8} EXP</span>
+            <span class="text-[10.5px] font-semibold text-emerald-700">${cfg.effectText}${cfg.service ? '' : ` · +${cfg.expPerCycle || 8} EXP`}</span>
             <button data-build="${cfg.id}" class="btn-primary px-3 py-1 rounded-xl text-xs font-bold shrink-0" ${canAfford ? '' : 'disabled'}>
               ${unlocked ? 'Xây ngay' : `Cấp ${reqLv}`}
             </button>
@@ -419,9 +424,7 @@ function renderDrawer() {
     const statusClass = missing
       ? 'text-amber-800 bg-amber-50 border-amber-300/80'
       : 'text-emerald-800 bg-emerald-50 border-emerald-200/70';
-    const statusText = missing
-      ? `⚠️ Đang tạm dừng: ${missing.label} (Cần ${missing.needed}, hiện có ${missing.current})`
-      : `✅ Đang vận hành · Chu kỳ ${curStats.cycleSec.toFixed(1)}s`;
+    const statusText = getRoomStatusText(missing, curStats.cycleSec);
 
     const upgradeDesc = `Lên Lv.${upReq.nextLv}: ${formatRoomOutput(curStats.output)} → ${formatRoomOutput(nextLvStats.output)} · Chu kỳ ${curStats.cycleSec.toFixed(1)}s → ${nextLvStats.cycleSec.toFixed(1)}s · Thưởng +${upReq.expGain} EXP`;
 
@@ -515,8 +518,10 @@ function renderDrawer() {
           ${statusText}
         </div>
         <div class="text-[11.5px] text-stone-700 bg-stone-50 border border-stone-200/70 rounded-xl px-2.5 py-1.5 flex items-center justify-between gap-2">
-          <span class="text-stone-500">Sản lượng & EXP:</span>
-          <span class="font-bold text-stone-900">${formatRoomOutput(curStats.output)} · <span class="text-amber-700">+${curStats.expGain} EXP</span></span>
+          <span class="text-stone-500">${cfg.service ? 'Phục vụ:' : 'Sản lượng & EXP:'}</span>
+          <span class="font-bold text-stone-900">${formatRoomOutput(curStats.output)}
+            ${cfg.service ? '' : `· <span class="text-amber-700">+${curStats.expGain} EXP</span>`}
+          </span>
         </div>
         <div>
           <div class="flex justify-between text-[11px] text-stone-500 mb-1">
@@ -578,6 +583,11 @@ function renderDrawer() {
     `;
 
     document.getElementById('btn-boost-room').addEventListener('click', () => {
+      const missing = getMissingInputInfo(room);
+      if (room.hazard?.blocking || missing) {
+        updateSelectedRoomProgressOnly(room);
+        return;
+      }
       SoundFX.click();
       room.progress += 0.35;
       if (room.progress >= 1) {

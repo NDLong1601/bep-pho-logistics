@@ -79,11 +79,11 @@ function updateSimulation(dt, timeSec) {
     const penaltiesToday = state.dailyPenalties || 0;
     const dayReport = {
       day: finishedDay,
-      grossSales: Math.max(0, totalEarnedToday - tipsToday),
+      incomeBeforeTips: Math.max(0, totalEarnedToday - tipsToday),
       tips: tipsToday,
-      upkeep,
+      upkeep: paidUpkeep,
       penalties: penaltiesToday,
-      netProfit: totalEarnedToday - upkeep - penaltiesToday,
+      netProfit: totalEarnedToday - paidUpkeep - penaltiesToday,
       completed: state.dailyOrdersCompleted || 0,
       failed: state.dailyOrdersFailed || 0
     };
@@ -209,7 +209,7 @@ function updateSimulation(dt, timeSec) {
     } else {
       room.starved = true;
       room.missingLabel = missing.label;
-      room.progress = Math.min(room.progress, 0.15);
+      room.progress = missing.waitingForOrder ? 0 : Math.min(room.progress, 0.15);
     }
 
     if (wasStarved !== room.starved || prevMissingLabel !== room.missingLabel) {
@@ -383,6 +383,20 @@ function updateSimulation(dt, timeSec) {
 
 function completeRoomCycle(room, bonuses) {
   const cfg = GAME_CONFIG.rooms[room.type];
+  if (!cfg || room.hazard?.blocking) return;
+  if (cfg.service) {
+    const ticket = getRoomServiceTicket(room);
+    if (!ticket) return;
+    const delivery = deliverTicket(ticket, room, cfg.service.units);
+    if (delivery) {
+      const text = delivery.totalGain ? `+${delivery.totalGain} Xu` : `Đã giao ${ticket.delivered}/${ticket.amount}`;
+      spawnFloater(room.gx, room.gy, text, delivery.totalGain ? '#B85524' : '#266E56');
+    }
+    if (selectedPlot && selectedPlot.gx === room.gx && selectedPlot.gy === room.gy) {
+      updateSelectedRoomProgressOnly(room);
+    }
+    return;
+  }
   if (cfg.requires) {
     for (const [k, amt] of Object.entries(cfg.requires)) {
       if ((state[k] || 0) < amt) return;
@@ -406,23 +420,7 @@ function completeRoomCycle(room, bonuses) {
     bumpStat('pill-coins');
   }
   if (out.rep) { state.rep += out.rep; bumpStat('pill-rep'); }
-  if (out.served) state.totalServed += out.served;
   gainExp(cycleStats.expGain);
-
-  // Auto-advance matching live customer ticket when service rooms finish a cycle
-  if ((room.type === 'dining' || room.type === 'cafe' || room.type === 'dispatch' || room.type === 'drone_hub') && Array.isArray(state.tickets) && state.tickets.length > 0) {
-    const targetRes = (room.type === 'dining' || room.type === 'cafe') ? 'dishes' : 'parcels';
-    const match = state.tickets.find(t => t.resource === targetRes);
-    if (match) {
-      const units = room.type === 'drone_hub' ? 2 : 1;
-      match.delivered = (match.delivered || 0) + units;
-      if (match.delivered >= match.amount) {
-        fulfillTicket(match.id, false, true);
-      } else if (typeof renderTicketRail === 'function') {
-        renderTicketRail();
-      }
-    }
-  }
 
   if (msgs.length) spawnFloater(room.gx, room.gy, msgs[0], out.coins ? '#B85524' : '#266E56');
   updateHUD();

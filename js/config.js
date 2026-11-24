@@ -3,6 +3,7 @@
 // =========================================================================
 const GAME_CONFIG = {
   SAVE_KEY: 'bep_pho_logistics_v1',
+  SAVE_VERSION: 2,
   GRID_COLS: 4,
   GRID_ROWS: 4,
   TILE_SIZE: 4.4,
@@ -63,13 +64,12 @@ const GAME_CONFIG = {
       icon: '🍽️',
       category: 'Nhà hàng',
       unlockLevel: 1,
-      expPerCycle: 10,
       cost: 280,
       upgradeBase: 200,
       staffCost: 140,
       cycleTime: 4.8,
       desc: 'Không gian gỗ ấm áp đón thực khách từ ngoài phố vào dùng bữa tại chỗ.',
-      effectText: '1 Món → +55 Xu & +1 Uy tín',
+      effectText: 'Phục vụ phiếu Bistro · 1 món / lượt',
       floorStyle: 'wood',
       floorTint: '#D3A676',
       wallColor: '#EFE6DA',
@@ -77,12 +77,7 @@ const GAME_CONFIG = {
       staffColor: '#4A6E8F',
       glassFront: true,
       starter: true,
-      requires: { dishes: 1 },
-      produce: (lv, staff, mult, bonuses) => ({
-        coins: Math.round((48 + lv * 18) * (1 + (staff - 1) * 0.35) * mult * bonuses.revenueMult),
-        rep: 1,
-        served: 1
-      })
+      service: { resource: 'dishes', units: 1, staffBonus: 0.35 }
     },
     packing: {
       id: 'packing',
@@ -113,13 +108,12 @@ const GAME_CONFIG = {
       icon: '🛵',
       category: 'Logistics',
       unlockLevel: 3,
-      expPerCycle: 14,
       cost: 420,
       upgradeBase: 280,
       staffCost: 180,
       cycleTime: 5.5,
       desc: 'Điều phối đội xe giao đơn đóng gói khắp thành phố với lợi nhuận cao.',
-      effectText: '1 Đơn → +115 Xu & +2 Uy tín',
+      effectText: 'Giao phiếu Shipper · 1 kiện / lượt',
       floorStyle: 'asphalt',
       floorTint: '#C8C4BD',
       wallColor: '#E5DFD7',
@@ -127,12 +121,7 @@ const GAME_CONFIG = {
       staffColor: '#D15540',
       glassFront: false,
       starter: false,
-      requires: { parcels: 1 },
-      produce: (lv, staff, mult, bonuses) => ({
-        coins: Math.round((95 + lv * 35) * (1 + (staff - 1) * 0.4) * mult * bonuses.revenueMult),
-        rep: 2,
-        served: 1
-      })
+      service: { resource: 'parcels', units: 1, staffBonus: 0.4 }
     },
     cafe: {
       id: 'cafe',
@@ -140,13 +129,12 @@ const GAME_CONFIG = {
       icon: '☕',
       category: 'Nhà hàng',
       unlockLevel: 4,
-      expPerCycle: 13,
       cost: 380,
       upgradeBase: 250,
       staffCost: 160,
       cycleTime: 5.0,
       desc: 'Phục vụ đồ uống và bánh ngọt, đồng thời tăng +12% giá trị mọi đơn hàng.',
-      effectText: '+40 Xu thụ động & +12% doanh thu',
+      effectText: 'Phục vụ phiếu Trà Chiều · +12% doanh thu',
       floorStyle: 'wood_light',
       floorTint: '#E5CBA5',
       wallColor: '#F5EDE1',
@@ -155,10 +143,7 @@ const GAME_CONFIG = {
       glassFront: true,
       starter: false,
       passiveBonus: { revenuePct: 0.12 },
-      produce: (lv, staff, mult, bonuses) => ({
-        coins: Math.round((32 + lv * 14) * (1 + (staff - 1) * 0.35) * mult * bonuses.revenueMult),
-        rep: 1
-      })
+      service: { resource: 'dishes', units: 1, staffBonus: 0.35 }
     },
     office: {
       id: 'office',
@@ -244,13 +229,12 @@ const GAME_CONFIG = {
       icon: '🚁',
       category: 'Logistics',
       unlockLevel: 8,
-      expPerCycle: 25,
       cost: 780,
       upgradeBase: 480,
       staffCost: 280,
       cycleTime: 5.0,
       desc: 'Đội bay Drone tự động giao 2 đơn siêu tốc xuyên thành phố với lợi nhuận vượt trội.',
-      effectText: '2 Đơn → +270 Xu & +3 Uy tín',
+      effectText: 'Giao phiếu Drone · tối đa 2 kiện / lượt',
       floorStyle: 'asphalt',
       floorTint: '#B9C0C7',
       wallColor: '#E4E9EE',
@@ -258,12 +242,7 @@ const GAME_CONFIG = {
       staffColor: '#2B6E8C',
       glassFront: false,
       starter: false,
-      requires: { parcels: 2 },
-      produce: (lv, staff, mult, bonuses) => ({
-        coins: Math.round((230 + lv * 75) * (1 + (staff - 1) * 0.42) * mult * bonuses.revenueMult),
-        rep: 3,
-        served: 2
-      })
+      service: { resource: 'parcels', units: 2, staffBonus: 0.42 }
     }
   },
 
@@ -397,6 +376,13 @@ const GAME_CONFIG = {
     { id: 'sunset', start: 30, end: 37, label: '🌅 Hoàng hôn', speedPct: 0, revenuePct: 0, isNight: false, isRush: false },
     { id: 'night_rush', start: 37, end: 45, label: '🌙 Đêm Phố Cổ', speedPct: 0, revenuePct: 0.25, isNight: true, isRush: true }
   ],
+
+  roomHazards: {
+    overheat: { rooms: ['kitchen', 'packing'], icon: '🔥', label: 'Quá nhiệt!', blocking: true, duration: 10 },
+    dirty_table: { rooms: ['dining', 'cafe'], icon: '🫧', label: 'Dọn bàn +Tip', blocking: false, duration: 12 },
+    bonus_crate: { rooms: ['warehouse', 'cold_storage'], icon: '🎁', label: '+3 Kho quà', blocking: false, duration: 9 },
+    jam: { rooms: ['dispatch', 'drone_hub'], icon: '⚡', label: 'Đẩy nhanh +45%', blocking: false, duration: 10 }
+  },
 
   expressTemplates: [
     { title: 'Giao gấp cơm trưa văn phòng', resource: 'dishes', baseAmount: 4, baseReward: 170, rep: 3, timeLimit: 40 },

@@ -238,16 +238,8 @@ document.getElementById('btn-claim-contract').addEventListener('click', () => {
 });
 
 document.getElementById('btn-claim-express').addEventListener('click', () => {
-  const o = state.expressOrder;
-  if (!o || (state[o.resource] || 0) < o.amount) return;
-  state[o.resource] -= o.amount;
-  state.coins += o.reward;
-  state.totalEarned += o.reward;
-  state.dailyEarned = (state.dailyEarned || 0) + o.reward;
-  state.rep += o.rep;
-  state.totalServed += 1;
-  state.expressOrder = null;
-  state.expressCooldown = 14;
+  const o = fulfillExpressOrder();
+  if (!o) return;
   SoundFX.reward();
   showToast(`⚡ Hoàn thành đơn khẩn cấp! +${o.reward} Xu, +${o.rep} Uy tín & +40 EXP`);
   gainExp(40);
@@ -334,24 +326,31 @@ document.getElementById('btn-toggle-import').addEventListener('click', () => {
 });
 
 document.getElementById('btn-confirm-import').addEventListener('click', () => {
+  let imported;
   try {
     const parsed = JSON.parse(document.getElementById('import-textarea').value.trim());
-    if (!parsed || !Array.isArray(parsed.rooms)) throw new Error('invalid');
-    state = normalizeLoadedState(parsed);
-    lastDayPhaseId = null;
-    closeInspector();
-    buildGroundGrid();
-    rebuildRooms3D();
-    resetCamera();
-    updateHUD();
-    renderTicketRail();
-    updateContractUI();
-    saveGame(false);
-    showToast('Đã khôi phục dữ liệu thành công!');
-    document.getElementById('import-area').classList.add('hidden');
-  } catch (e) {
-    showToast('Mã JSON không hợp lệ, vui lòng kiểm tra lại.');
+    imported = normalizeLoadedState(parsed);
+  } catch (error) {
+    const reason = error instanceof SyntaxError ? 'Không đọc được mã JSON.' : error.message;
+    showToast(`Không thể nhập bản lưu. ${reason}`);
+    return;
   }
+
+  state = imported;
+  lastDayPhaseId = null;
+  closeInspector();
+  buildGroundGrid();
+  rebuildRooms3D();
+  resetCamera();
+  updateHUD();
+  renderTicketRail();
+  updateContractUI();
+  if (saveGame(false, true)) {
+    showToast('Đã khôi phục và lưu tiến trình.');
+  } else {
+    showToast('Đã khôi phục tiến trình nhưng trình duyệt chưa lưu được.');
+  }
+  document.getElementById('import-area').classList.add('hidden');
 });
 
 const autoDayToggle = document.getElementById('toggle-auto-day');
@@ -384,7 +383,7 @@ document.getElementById('btn-reset-game').addEventListener('click', (e) => {
   renderTicketRail();
   updateContractUI();
   resetCamera();
-  saveGame(false);
+  saveGame(false, true);
   modal.classList.add('hidden');
   modal.classList.remove('flex');
   showToast('Đã khởi tạo khu bếp mới!');
@@ -431,13 +430,16 @@ window.addEventListener('resize', () => {
 });
 
 window.onload = () => {
-  loadGame();
+  const loaded = loadGame();
   buildGroundGrid();
   rebuildRooms3D();
   resetCamera();
   updateHUD();
   renderTicketRail();
   updateContractUI();
+  if (!loaded) {
+    showToast('Không đọc được bản lưu. Tự động lưu đã tạm dừng.');
+  }
   if (pendingOfflineCoins > 0) {
     const mins = Math.max(1, Math.round(pendingOfflineSec / 60));
     showToast(`🌙 Chào mừng trở lại! Bếp thu về +${pendingOfflineCoins.toLocaleString('vi-VN')} Xu (${mins} phút)`);
